@@ -1,5 +1,5 @@
 #! /usr/bin/python3
-from bottle import  route, run, template, request, response
+from bottle import  route, run, template, request, response, HTTPResponse
 import sqlite3
 import requests
 import numpy
@@ -8,10 +8,17 @@ from datetime import datetime
 import queue
 import time
 import random
+from concurrent.futures import ThreadPoolExecutor
 
-q_nursing = queue.Queue()
-q_surgery = queue.Queue()
-q_ERTreatment = queue.Queue()
+executor = ThreadPoolExecutor(max_workers=1)
+
+taskQueue = queue.PriorityQueue()
+
+#Amount of surgery in the queue
+surgeryQueue = 0
+
+#Amount of nursing in the queue
+nursingQueue = 0
 
 
 def insert_patient(admission_date, patient_type):
@@ -25,43 +32,30 @@ def insert_patient(admission_date, patient_type):
     conn.close()
     return cursor.lastrowid
 
-def update_resource_amount(resource_name, new_amount):
-    conn = sqlite3.connect('resources.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE resources
-        SET amount = ?
-        WHERE resource_name = ?
-    ''', (new_amount, resource_name))
-    conn.commit()
-    conn.close()
-
-def update_calender(new_amount, resource_name, hour):
-    conn = sqlite3.connect('calender.db')
+def update_resource_amount(resourceName, amount, time):
+    conn = sqlite3.connect('resources_calender.db')
     cursor = conn.cursor()
     cursor.execute('''
         UPDATE resources
         SET ? = ?
-        WHERE resource_name = ?
-    ''', (new_amount, resource_name, hour))
+        WHERE globalMinute = ?
+    ''', (resourceName, amount, time))
     conn.commit()
+    conn.close()
 
-def get_resource_amount(resource_name):
-    conn = sqlite3.connect('resources.db')
+def get_resource_amount(resource_name, time):
+    conn = sqlite3.connect('resources_calender.db')
     cursor = conn.cursor()
 
     # Abfrage ausführen
-    cursor.execute('''
-        SELECT amount FROM resources
-        WHERE resource_name = ?
-    ''', (resource_name,))
+    query = f'SELECT {resource_name} FROM resources WHERE globalMinute = ?'
+    cursor.execute(query, (time,))
 
     # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
     result = cursor.fetchone()
 
     # Verbindung schließen
     conn.close()
-
     # Wenn ein Ergebnis vorhanden ist, gib die totalTime zurück, sonst gib None zurück
     if result:
         return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
@@ -228,61 +222,92 @@ def ER_diagnosis_generator():
     return diagnosis
 
 
-@route('/patientAdmission', method = 'POST')
-def patient_admission():
+@route('/task', method = 'POST')
+def task_queue():
     try:
         patientType = request.forms.get('patientType')
         patientId = request.forms.get('patientId')
-        timeslot = request.forms.get('timeslot')
-        admission_time = request.forms.get('admission_time')#TODO vielleicht hochzählen
+        arrivalTime = request.forms.get('arrivalTime')#TODO vielleicht hochzählen
+        appointment = request.forms.get('appointment')
+        taskRole = request.forms.get('taskRole')
+        callbackURL = request.headers['CPEE-CALLBACK']
+
+        #patients admission case without queue
+        print(taskRole)
+        if taskRole == "patientAdmission":
+
+            #Give PatientId if there is no
+            if not patientId:
+                patientId = insert_patient(arrivalTime, patientType)
+            else:
+                pass
+
+            #check if resources are available if patient has appointment
+            print(appointment)
+            if appointment:           
+                if get_resource_amount("intake", appointment) > 0 and surgeryQueue < 2 and nursingQueue < 2:
+                    intake = True
+                else:
+                    intake = False
+            else:
+                intake = False
+
+            return {"patientType": patientType, "patientId": patientId,
+                    "intake": intake}
+        elif taskRole == "releasing":
+            # request patient data
+            set_process_status(patientId , True)
+            return {"patientType": patientType, "patientId": patientId}
+        else:
+            data = {"patientId": patientId,
+                    "patientType": patientType,
+                    "arrivalTime": arrivalTime,
+                    "appointment": appointment,
+                    "taskRole": taskRole,
+                    "callbackURL": callbackURL}
+            taskQueue.put((appointment, data))
+            print(taskQueue.get())
+
+
+            return HTTPResponse(
+                json.dumps({'Ack.:': 'Response later'}),
+                status=202,
+                headers={'content-type': 'application/json', 'CPEE-CALLBACK': 'true'})
     
-        #Give PatientId if there is no
-        if not patientId:
-            patientId = insert_patient(admission_time, patientType)
-        else:
-            pass
 
-        #if patient is not planned replan in every case
-        if not timeslot:
-            timeslot = False
-        else:
-            pass
-
-        #Give back the resources according to patient type
-        ER_resource_amount = get_resource_amount("EmergencyDep")
-        intake_resource_amount = get_resource_amount("Intake")
-
-        #Treatment is infeasible either if more than two patients have finished the intake,
-        #but have not yet been processed in the Surgery or Nursing departments, or when all Intake
-        #resources are occupied upon a patient's arrival.
-        if intake_resource_amount < 1:
-            resources_unavailable = True
-        elif q_nursing.qsize() > 2 or q_surgery.qsize() > 2:
-             resources_unavailable = True
-        else:
-            resources_unavailable = False
-
-        #send back the required information
-        return {"patientType": patientType, "patientId": patientId,
-         "ER_resource_amount": ER_resource_amount,
-         "timeslot": timeslot,
-         "resources_unavailable": resources_unavailable}
 
     except Exception as e:
         response.status = 500
         print(e)
         return {"error": str(e)}
+    
+
+def task_handler(patientId, patientType, arrivalTime, appointment, taskRole):
+    try:
+        if taskRole == "patientAdmission":
+            pass
+            
+    except Exception as e:
+        response.status = 500
+        return {"error": str(e)}
+
+
 
 @route('/replanPatient', method = 'POST')#TODO Implement reasonable logic for replanning
 def replan_patient():
     try:
         patientType = request.forms.get('patientType')
         patientId = request.forms.get('patientId')
-        timeslot = request.forms.get('timeslot')
+        arrivalTime = request.forms.get('arrivalTime')
+
+        #simply replan for the next day
+        appointment = arrivalTime + 24 * 60
+
+        #prepare data
         data = {
             "behavior": "fork_running",
             "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + str(patientType)+ "\",\"patientId\":\"" + str(patientId) + "\", \"timeslot\":\"" + str(timeslot) + "\"}"
+            "init": "{\"patientType\":\"" + str(patientType)+ "\",\"patientId\":\"" + str(patientId) + "\", \"arrivalTime\":\"" + str(arrivalTime) + "\",\"appointment\":\"" + str(appointment) + "\"}"
             }
         
         response = requests.post("https://cpee.org/flow/start/url/", data = data)
@@ -292,206 +317,5 @@ def replan_patient():
     except Exception as e:
         response.status = 500
         return {"error": str(e)}
-
-@route('/intakePatient', method = 'POST')
-def intake_patient():
-    try:
-        #Consume a resource
-        amount_intake_resource = get_resource_amount("Intake")
-        if amount_intake_resource > 0:
-            update_resource_amount("Intake", amount_intake_resource - 1)
-            resource_consumed = True
-        else:
-            resource_consumed = False
-            
-        #request patient data
-        patientType = request.forms.get('patientType')
-        patientId = request.forms.get('patientId')
-
-        #add time to total time
-        patientTime = get_patient_time(patientId)
-        intake_duration = numpy.random.normal(1,0.125)
-        patientTime += intake_duration
-        set_patient_time(patientId, patientTime)
-
-        #decide if patient needs surgery
-        if "a" in patientType.lower():
-            if "2" in patientType or "3" in patientType or "4" in patientType:
-                surgery = "true"
-            else:
-                surgery = "false"
-        elif "b" in patientType.lower():
-            if "3" in patientType or "4" in patientType:
-                surgery = "true"
-            else:
-                surgery = "false"
-        else:
-            surgery = "false"
-
-        #release intake resource
-        amount_intake_resource = get_resource_amount("Intake")
-        if resource_consumed:
-            update_resource_amount("Intake", amount_intake_resource + 1)
-        return {"patientType": patientType, "patientId": patientId,
-         "surgery": surgery,
-         "phantomPain": "false"}
-
-
-    except Exception as e:
-        response.status = 500
-        print(e)
-        return {"error": str(e)}
-
-@route('/surgery', method = 'POST')
-def surgery():
-    try:
-        #request patient data
-        patientId = request.forms.get('patientId')
-        patientType = request.forms.get('patientType')
-        patientTime = get_patient_time(patientId)
-
-        #wait for free resource
-        q_surgery.put("patient")
-        while get_resource_amount("Surgery") < 1:
-            patientTime += 1
-            time.sleep(1)
-        q_surgery.get()
-        #Consume a resource
-        amount_intake_resource = get_resource_amount("Surgery")
-        update_resource_amount("Surgery", amount_intake_resource - 1)
-        #update patient time with treatment time
-        intake_duration = calculate_operation_time(patientType[-2:], "surgery")
-        patientTime += intake_duration
-        set_patient_time(patientId, patientTime)
-
-        #give resources back
-        amount_intake_resource = get_resource_amount("Surgery")
-        update_resource_amount("Surgery", amount_intake_resource + 1)
-        return {"patientType": patientType, "patientId": patientId}
-
-
-    except Exception as e:
-        response.status = 500
-        return {"error": str(e)}
-
-@route('/nursing', method = 'POST')
-def nursing():
-    try:
-        # request patient data
-        patientId = request.forms.get('patientId')
-        patientType = request.forms.get('patientType')
-        patientTime = get_patient_time(patientId)
-
-        if "a" in patientType.lower():
-            resourceName = "NursingA"
-        if "b" in patientType.lower():
-            resourceName = "NursingB"
-        else:
-            resourceName = "NursingA"
-
-        #wait for free resources
-        q_nursing.put("patient")
-        while get_resource_amount(resourceName) < 1:
-            patientTime += 1
-            time.sleep(1)
-        q_nursing.get()
-        #consume resources
-        amount_intake_resource = get_resource_amount(resourceName)
-        update_resource_amount(resourceName, amount_intake_resource - 1)
-
-        #define complications
-        complication = complication_generator(patientType)
-
-        #update patient time with treatment time
-        intake_duration = calculate_operation_time(patientType[-2:], "nursing")
-        patientTime += intake_duration
-        set_patient_time(patientId, patientTime)
-
-        #give resources back
-        amount_intake_resource = get_resource_amount(resourceName)
-        update_resource_amount(resourceName, amount_intake_resource + 1)
-
-
-        return {"patientType": patientType, "patientId": patientId,
-                "complication": complication}  
-
-
-    except Exception as e:
-        response.status = 500
-        return {"error": str(e)}
-
-@route('/releasing', method = 'POST')
-def releasing():
-    try:
-        # request patient data
-        patientId = request.forms.get('patientId')
-        patientType = request.forms.get('patientType')
-        set_process_status(patientId , True)
-        return {"patientType": patientType, "patientId": patientId}
-    except Exception as e:
-        response.status = 500
-        return {"error": str(e)}
-
-@route('/ERTreatment', method = 'POST')
-def ER_Treatment():
-    try:
-        #request patient data
-        patientId = request.forms.get('patientId')
-        patientType = request.forms.get('patientType')
-        patientTime = get_patient_time(patientId)
-
-        #Consume a resource
-        #wait for free resource
-        q_ERTreatment.put("ER_patient")
-        while get_resource_amount("EmergencyDep") < 1:
-            patientTime += 1
-            time.sleep(1)
-        q_ERTreatment.get()
-        amount_intake_resource = get_resource_amount("EmergencyDep")
-        update_resource_amount("EmergencyDep", amount_intake_resource - 1)
-
-        #update patient time with treatment time
-        intake_duration = numpy.random.normal(2,0.5)
-        patientTime += intake_duration
-        set_patient_time(patientId, patientTime)
-
-        diagnosis = ER_diagnosis_generator()
-        patientType = str(patientType+"-"+diagnosis)
-
-        #decide if patient needs surgery
-        if "a" in patientType.lower():
-            if "2" in patientType or "3" in patientType or "4" in patientType:
-                surgery = "true"
-            else:
-                surgery = "false"
-        elif "b" in patientType.lower():
-            if "3" in patientType or "4" in patientType:
-                surgery = "true"
-            else:
-                surgery = "false"
-        else:
-            surgery = "false"
-
-        #decide if patient has phantom pain
-        random_number = random.random()
-        if random_number > 0.5:
-            phantomPain = "true"
-        else:
-            phantomPain = "false"
-
-        #give resources back
-        amount_intake_resource = get_resource_amount("EmergencyDep")
-        update_resource_amount("EmergencyDep", amount_intake_resource + 1)
-        return {"patientType": patientType, "patientId": patientId,
-         "surgery": surgery,
-         "phantomPain": phantomPain}
-
-
-    except Exception as e:
-        response.status = 500
-        print(e)
-        return {"error": str(e)}
-
-
 
 run(host='::1', port=48904)
