@@ -8,9 +8,8 @@ from datetime import datetime
 import queue
 import time
 import random
-from concurrent.futures import ThreadPoolExecutor
+import threading
 
-executor = ThreadPoolExecutor(max_workers=1)
 
 taskQueue = queue.PriorityQueue()
 
@@ -266,7 +265,7 @@ def task_queue():
                     "taskRole": taskRole,
                     "callbackURL": callbackURL}
             taskQueue.put((appointment, data))
-            print(taskQueue.get())
+            print(taskQueue.qsize())
 
 
             return HTTPResponse(
@@ -282,16 +281,49 @@ def task_queue():
         return {"error": str(e)}
     
 
-def task_handler(patientId, patientType, arrivalTime, appointment, taskRole):
-    try:
-        if taskRole == "patientAdmission":
+def worker():
+    while True:
+        print("Ich arbeite")
+        time.sleep(20)
+        task = taskQueue.get()
+        patientId = task[1]['patientId']
+        patientType = task[1]['patientType']
+        arrivalTime = task[1]['arrivalTime']
+        appointment = task[1]['appointment']
+        taskRole = task[1]['taskRole']
+        callbackURL= task[1]['callbackURL']
+        #print(taskQueue.get()[1]['callbackURL'])
+
+        if taskRole == "intake":
             pass
-            
-    except Exception as e:
-        response.status = 500
-        return {"error": str(e)}
+        elif taskRole == "surgery":
+            pass
+        elif taskRole == "nursing":
+            pass
+        elif taskRole == "ERTreatment":
+            pass
+        else:
+            pass
+
+        # Prepare the callback response as JSON
+        callback_response = {
+            'task_id': 'task_id',
+            'status': 'completed',
+            'result': {'success': True}
+        }
+
+        # Prepare the headers
+        headers = {
+            'content-type': 'application/json',
+            'CPEE-CALLBACK': 'true'
+        }
+
+        # Send the callback response as a JSON payload
+        requests.put(callbackURL, headers=headers, json=callback_response)
+        print(f"PUT request sent to callback_url: {callbackURL}")
 
 
+threading.Thread(target=worker, daemon=True).start()
 
 @route('/replanPatient', method = 'POST')#TODO Implement reasonable logic for replanning
 def replan_patient():
@@ -317,5 +349,6 @@ def replan_patient():
     except Exception as e:
         response.status = 500
         return {"error": str(e)}
+    
 
 run(host='::1', port=48904)
