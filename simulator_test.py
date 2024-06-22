@@ -31,14 +31,21 @@ def insert_patient(admission_date, patient_type):
     conn.close()
     return cursor.lastrowid
 
-def update_resource_amount(resourceName, amount, time):
+def update_resource_amount(resourceName, amount, startTime, endTime):
     conn = sqlite3.connect('resources_calender.db')
     cursor = conn.cursor()
-    cursor.execute('''
+
+    # Sicherheitscheck: Prüfe den Spaltennamen
+    valid_columns = ['intake', 'surgery', 'a_bed', 'b_bed', 'emergency']  # Beispiel für gültige Spaltennamen
+    if resourceName not in valid_columns:
+        raise ValueError("Ungültiger Spaltenname")
+    
+    query = f'''
         UPDATE resources
-        SET ? = ?
-        WHERE globalMinute = ?
-    ''', (resourceName, amount, time))
+        SET {resourceName} = ?
+        WHERE globalMinute >= ? AND globalMinute <= ?
+    '''
+    cursor.execute(query, (amount, startTime, endTime))
     conn.commit()
     conn.close()
 
@@ -46,6 +53,11 @@ def get_resource_amount(resource_name, time):
     conn = sqlite3.connect('resources_calender.db')
     cursor = conn.cursor()
 
+    # Sicherheitscheck: Prüfe den Spaltennamen
+    valid_columns = ['intake', 'surgery', 'a_bed', 'b_bed', 'emergency']  # Beispiel für gültige Spaltennamen
+    if resource_name not in valid_columns:
+        raise ValueError("Ungültiger Spaltenname")
+    
     # Abfrage ausführen
     query = f'SELECT {resource_name} FROM resources WHERE globalMinute = ?'
     cursor.execute(query, (time,))
@@ -226,7 +238,8 @@ def task_queue():
     try:
         patientType = request.forms.get('patientType')
         patientId = request.forms.get('patientId')
-        arrivalTime = request.forms.get('arrivalTime')#TODO vielleicht hochzählen
+        arrivalTime = request.forms.get('arrivalTime')
+        patientTime = request.forms.get('patientTime')
         appointment = request.forms.get('appointment')
         taskRole = request.forms.get('taskRole')
         callbackURL = request.headers['CPEE-CALLBACK']
@@ -235,6 +248,9 @@ def task_queue():
         print(taskRole)
         if taskRole == "patientAdmission":
 
+            #set patienttime to arrivatime for this run
+            patientTime = arrivalTime
+
             #Give PatientId if there is no
             if not patientId:
                 patientId = insert_patient(arrivalTime, patientType)
@@ -242,16 +258,18 @@ def task_queue():
                 pass
 
             #check if resources are available if patient has appointment
-            print(appointment)
             if appointment:           
-                if get_resource_amount("intake", appointment) > 0 and surgeryQueue < 2 and nursingQueue < 2:
+                if get_resource_amount("intake", patientTime) > 0 and surgeryQueue < 2 and nursingQueue < 2:
                     intake = True
                 else:
                     intake = False
+            elif patientType == "ER":
+                intake = True
             else:
                 intake = False
 
-            return {"patientType": patientType, "patientId": patientId,
+            return {"patientType": patientType, "patientId": patientId, 
+                    "patientTime": patientTime,
                     "intake": intake}
         elif taskRole == "releasing":
             # request patient data
@@ -295,7 +313,17 @@ def worker():
         #print(taskQueue.get()[1]['callbackURL'])
 
         if taskRole == "intake":
-            pass
+
+            #calculate intake duration
+            intake_duration = round(numpy.random.normal(60, 7.5))
+
+            #book resources
+            amount = get_resource_amount()
+            update_resource_amount("intake", )
+                
+
+
+
         elif taskRole == "surgery":
             pass
         elif taskRole == "nursing":
@@ -332,8 +360,9 @@ def replan_patient():
         patientId = request.forms.get('patientId')
         arrivalTime = request.forms.get('arrivalTime')
 
-        #simply replan for the next day
-        appointment = arrivalTime + 24 * 60
+        #simply replan for the next day update appointment and arrivaltime
+        appointment = True
+        arrivalTime = int(arrivalTime) + 24 * 60
 
         #prepare data
         data = {
