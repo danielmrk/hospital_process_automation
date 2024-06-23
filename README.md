@@ -28,5 +28,21 @@ The initial start for arrivalTime is 500 minutes which is approximately 8:20 AM.
 
 ## Functionality and Background
 
+The Script uses two databases.
 
+1. patients.db
+2. resources_calender.db
+
+The patientsDB Database can be established executing the database_calender.py.
+The resources_calender database can be established using the database_calender.py.
+
+In patientsDB every Patient is stored with an individual ID, admissionDate, patientType, totalTime and processFinished variable.
+The resources_calender.db has a row for every minute of a year. In addition for every minute of the year there are the resources which are available depending on the day of the week and time (resources depend on day and working time).
+The Script is now able to book resources and evaluate if there are resources available.
+
+Every task besides replanning is handled by a endpoint which eather puts the task in a priorityQueue or answers in case of patientAdmission or releasing immediately.
+Replanning is in the moment always for 10 AM at the next day implemented.
+This queue is then handled by a worker thread. This worker handles them sorted by the time they start.
+If no resources are available the patient has to wait.
+There is no real time, the time is just a variable of the patient.
 
