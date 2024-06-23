@@ -351,6 +351,7 @@ def task_queue():
 def worker():
     while True:
         try:
+            #read out patient data out of queue
             print(list(taskQueue.queue))
             task = taskQueue.get()
             task = json.loads(task.data)
@@ -362,8 +363,6 @@ def worker():
             appointment = task['appointment']
             taskRole = task['taskRole']
             callbackURL= task['callbackURL']
-            #print(taskQueue.get()[1]['callbackURL'])
-            print(patientType)
 
             if taskRole == "intake":
 
@@ -377,6 +376,7 @@ def worker():
                 else:
                     while get_resource_amount("intake", patientTime) < 1:
                         patientTime = int(patientTime) + 1
+                        print("Waiting")
                     amount = get_resource_amount("intake", patientTime)
                     update_resource_amount("intake", (amount - 1), patientTime, int(patientTime) + intake_duration )
 
@@ -431,6 +431,7 @@ def worker():
                 else:
                     while get_resource_amount("surgery", patientTime) < 1:
                         patientTime = int(patientTime) + 1
+                        print("Waiting")
                     amount = get_resource_amount("surgery", patientTime)
                     update_resource_amount("surgery", (amount - 1), patientTime, int(patientTime) + surgeryDuration )
 
@@ -477,6 +478,7 @@ def worker():
                 else:
                     while get_resource_amount(resourceName, patientTime) < 1:
                         patientTime = int(patientTime) + 1
+                        print("Waiting")
                     amount = get_resource_amount(resourceName, patientTime)
                     update_resource_amount(resourceName, (amount - 1), patientTime, int(patientTime) + nursingDuration)
 
