@@ -351,6 +351,7 @@ def task_queue():
 def worker():
     while True:
         try:
+            time.sleep(2)
             #read out patient data out of queue
             print(list(taskQueue.queue))
             task = taskQueue.get()
