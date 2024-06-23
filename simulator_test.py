@@ -82,6 +82,29 @@ def get_resource_amount(resource_name, time):
         return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
     else:
         return None
+    
+def get_minute_next_day(patientTime):
+    conn = sqlite3.connect('resources_calender.db')
+    cursor = conn.cursor()
+
+    
+    # Abfrage ausführen
+    query = f'SELECT hour FROM resources WHERE globalMinute = ?'
+    cursor.execute(query, (patientTime,))
+
+    # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
+    result = cursor.fetchone()
+
+    #calculate how many minutes it will take to get to next day 10 o clock
+    minutes_next_day = (24 - result[0] + 10) * 60
+
+    # Verbindung schließen
+    conn.close()
+    # Wenn ein Ergebnis vorhanden ist, gib die minuten zurück, sonst gib None zurück
+    if result:
+        return minutes_next_day 
+    else:
+        return None
 
 def get_patient_time(patientId):
     # Verbindung zur SQLite-Datenbank herstellen
@@ -105,6 +128,8 @@ def get_patient_time(patientId):
         return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
     else:
         return None
+    
+    
 
 def set_patient_time(patient_id, new_total_time):
     # Verbindung zur SQLite-Datenbank herstellen
@@ -246,6 +271,7 @@ def ER_diagnosis_generator():
 @route('/task', method = 'POST')
 def task_queue():
     try:
+        #load patient data
         patientType = request.forms.get('patientType')
         patientId = request.forms.get('patientId')
         arrivalTime = request.forms.get('arrivalTime')
@@ -254,22 +280,24 @@ def task_queue():
         taskRole = request.forms.get('taskRole')
         callbackURL = request.headers['CPEE-CALLBACK']
 
-        print(arrivalTime)
 
         #patients admission case without queue
-        print(taskRole)
         if taskRole == "patientAdmission":
 
-            #set patienttime to arrivatime for this run
+            #set patienttime to arrivaltime for this run
             patientTime = arrivalTime
 
-            #Give PatientId if there is no
+            #Assign PatientId if there is no and put patient into patient database
             if not patientId:
                 patientId = insert_patient(arrivalTime, patientType)
             else:
                 pass
 
             #check if resources are available if patient has appointment
+            print("Test:")
+            print(get_resource_amount("intake", patientTime))
+            print(surgeryNursingQueue.qsize())
+            print(patientTime)
             if appointment:           
                 if get_resource_amount("intake", patientTime) > 0 and surgeryNursingQueue.qsize() < 3:
                     intake = True
@@ -284,7 +312,7 @@ def task_queue():
                     "patientTime": patientTime,
                     "intake": intake}
         elif taskRole == "releasing":
-            # request patient data
+            # set patienttime to final total time in the database and set the process status to finished
             set_patient_time(patientId, (int(patientTime) - int(arrivalTime)))
             set_process_status(patientId , True)
             return {"patientType": patientType, "patientId": patientId}
@@ -296,13 +324,12 @@ def task_queue():
                     "appointment": appointment,
                     "taskRole": taskRole,
                     "callbackURL": callbackURL}
-            # if taskRole == "surgery":
-            #     surgeryQueue = surgeryQueue + 1
-            # elif taskRole == "nursing":
-            #     nursingQueue = nursingQueue + 1
-            print(patientTime)
+
+
+            #add task to the queue to process it by the worker and prioritize it by patient time
             data = json.dumps(data)
             taskQueue.put(PrioritizedItem(int(patientTime), data))
+            print(list(taskQueue.queue))
 
             #Queue to check how many patients are in surgery or nursing queue
             if taskRole == "surgery" or taskRole == "nursing":
@@ -315,7 +342,6 @@ def task_queue():
     
     
 
-
     except Exception as e:
         response.status = 500
         print(e)
@@ -325,9 +351,8 @@ def task_queue():
 def worker():
     while True:
         try:
-            print("Ich arbeite")
-            task = taskQueue.get()
             print(list(taskQueue.queue))
+            task = taskQueue.get()
             task = json.loads(task.data)
             print(task)
             patientId = task['patientId']
@@ -344,10 +369,9 @@ def worker():
 
                 #calculate intake duration
                 intake_duration = round(numpy.random.normal(60, 7.5))
-                print(patientTime)
+
                 #book resources
                 amount = get_resource_amount("intake", patientTime)
-                print(amount)
                 if amount > 0:
                     update_resource_amount("intake", (amount - 1), patientTime, int(patientTime) + intake_duration )
                 else:
@@ -445,11 +469,9 @@ def worker():
                     resourceName = "b_bed"
                 else:
                     print("Error")
-                print(resourceName)
-                print(patientTime)
+
                 #book resources
                 amount = get_resource_amount(resourceName, patientTime)
-                print(amount)
                 if amount > 0:
                     update_resource_amount(resourceName, (amount - 1), patientTime, int(patientTime) + nursingDuration)
                 else:
@@ -554,9 +576,10 @@ def replan_patient():
         patientId = request.forms.get('patientId')
         arrivalTime = request.forms.get('arrivalTime')
 
+
         #simply replan for the next day update appointment and arrivaltime
         appointment = True
-        arrivalTime = int(arrivalTime) + 24 * 60
+        arrivalTime = int(arrivalTime) + get_minute_next_day(arrivalTime)
         print("Arrivaltime:" + str(arrivalTime))
         #prepare data
         data = {
