@@ -23,7 +23,7 @@ The patientType can be:
 - B4
 - ER
 
-The arrivaltime has to be given in minutes. The global time counting starts at 0 and ends after one year.
+The arrivaltime has to be given in minutes. In addition the patients have to arrive in chronological order. The global time counting starts at 0 and ends after one year.
 The initial start for arrivalTime is 500 minutes which is approximately 8:20 AM.
 
 ## Functionality and Background
@@ -41,6 +41,7 @@ The resources_calender.db has a row for every minute of a year. In addition for 
 The Script is now able to book resources and evaluate if there are resources available.
 
 Every task besides replanning is handled by a endpoint which eather puts the task in a priorityQueue or answers in case of patientAdmission or releasing immediately.
+The rest of the tasks is handled via an asynchronous call.
 Replanning is in the moment always for 10 AM at the next day implemented.
 This queue is then handled by a worker thread. This worker handles them sorted by the time they start.
 If no resources are available the patient has to wait.
