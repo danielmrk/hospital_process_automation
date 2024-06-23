@@ -14,12 +14,22 @@ import threading
 taskQueue = queue.PriorityQueue()
 
 #Amount of surgery in the queue
-surgeryQueue = 0
+surgeryNursingQueue = queue.Queue()
 
 #Amount of nursing in the queue
 nursingQueue = 0
 
-
+class PrioritizedItem:
+    def __init__(self, priority, data):
+        self.priority = priority
+        self.data = data
+    
+    def __lt__(self, other):
+        return self.priority < other.priority
+    
+    def __repr__(self):
+        return f'PrioritizedItem(priority={self.priority}, data={self.data})'
+    
 def insert_patient(admission_date, patient_type):
     conn = sqlite3.connect('patients.db')
     cursor = conn.cursor()
@@ -147,35 +157,35 @@ def set_process_status(patient_id, status):
 def calculate_operation_time(diagnosis, operation):
     if operation == "surgery":
         if diagnosis == "A2":
-            return numpy.random.normal(1, 0.25)
+            return numpy.random.normal(60, 15)
         if diagnosis == "A3":
-            return numpy.random.normal(2, 0.5)
+            return numpy.random.normal(120, 30)
         if diagnosis == "A4":
-            return numpy.random.normal(4, 0.5)
+            return numpy.random.normal(240, 30)
         if diagnosis == "B3":
-            return numpy.random.normal(4, 0.5)
+            return numpy.random.normal(240, 30)
         if diagnosis == "B4":
-            return numpy.random.normal(4, 1)
+            return numpy.random.normal(240, 60)
         else:
             print("Incorrect PatientType")
             return None
     if operation == "nursing":
         if diagnosis == "A1":
-            return numpy.random.normal(4, 0.5)
+            return numpy.random.normal(240, 30)
         if diagnosis == "A2":
-            return numpy.random.normal(8, 2)
+            return numpy.random.normal(480, 120)
         if diagnosis == "A3":
-            return numpy.random.normal(16, 2)
+            return numpy.random.normal(960, 120)
         if diagnosis == "A4":
-            return numpy.random.normal(16, 2)
+            return numpy.random.normal(960, 120)
         if diagnosis == "B1":
-            return numpy.random.normal(8, 2)
+            return numpy.random.normal(480, 120)
         if diagnosis == "B2":
-            return numpy.random.normal(16, 2)
+            return numpy.random.normal(960, 120)
         if diagnosis == "B3":
-            return numpy.random.normal(16, 4)
+            return numpy.random.normal(960, 240)
         if diagnosis == "B4":
-            return numpy.random.normal(16, 4)
+            return numpy.random.normal(960, 240)
         else:
             print("Incorrect PatientType")
             return None
@@ -206,9 +216,9 @@ def complication_generator(patientType):
     random_number = random.random()
 
     if random_number < probability:
-        complication = "true"
+        complication = True
     else:
-        complication = "false"
+        complication = False
     return complication
 
 def ER_diagnosis_generator():
@@ -244,6 +254,8 @@ def task_queue():
         taskRole = request.forms.get('taskRole')
         callbackURL = request.headers['CPEE-CALLBACK']
 
+        print(arrivalTime)
+
         #patients admission case without queue
         print(taskRole)
         if taskRole == "patientAdmission":
@@ -259,7 +271,7 @@ def task_queue():
 
             #check if resources are available if patient has appointment
             if appointment:           
-                if get_resource_amount("intake", patientTime) > 0 and surgeryQueue < 2 and nursingQueue < 2:
+                if get_resource_amount("intake", patientTime) > 0 and surgeryNursingQueue.qsize() < 3:
                     intake = True
                 else:
                     intake = False
@@ -273,23 +285,34 @@ def task_queue():
                     "intake": intake}
         elif taskRole == "releasing":
             # request patient data
+            set_patient_time(patientId, (int(patientTime) - int(arrivalTime)))
             set_process_status(patientId , True)
             return {"patientType": patientType, "patientId": patientId}
         else:
             data = {"patientId": patientId,
                     "patientType": patientType,
                     "arrivalTime": arrivalTime,
+                    "patientTime": patientTime,
                     "appointment": appointment,
                     "taskRole": taskRole,
                     "callbackURL": callbackURL}
-            taskQueue.put((appointment, data))
-            print(taskQueue.qsize())
+            # if taskRole == "surgery":
+            #     surgeryQueue = surgeryQueue + 1
+            # elif taskRole == "nursing":
+            #     nursingQueue = nursingQueue + 1
+            print(patientTime)
+            data = json.dumps(data)
+            taskQueue.put(PrioritizedItem(int(patientTime), data))
 
+            #Queue to check how many patients are in surgery or nursing queue
+            if taskRole == "surgery" or taskRole == "nursing":
+                surgeryNursingQueue.put("Patient")
 
             return HTTPResponse(
                 json.dumps({'Ack.:': 'Response later'}),
                 status=202,
                 headers={'content-type': 'application/json', 'CPEE-CALLBACK': 'true'})
+    
     
 
 
@@ -301,54 +324,225 @@ def task_queue():
 
 def worker():
     while True:
-        print("Ich arbeite")
-        time.sleep(20)
-        task = taskQueue.get()
-        patientId = task[1]['patientId']
-        patientType = task[1]['patientType']
-        arrivalTime = task[1]['arrivalTime']
-        appointment = task[1]['appointment']
-        taskRole = task[1]['taskRole']
-        callbackURL= task[1]['callbackURL']
-        #print(taskQueue.get()[1]['callbackURL'])
+        try:
+            print("Ich arbeite")
+            task = taskQueue.get()
+            print(list(taskQueue.queue))
+            task = json.loads(task.data)
+            print(task)
+            patientId = task['patientId']
+            patientType = task['patientType']
+            arrivalTime = task['arrivalTime']
+            patientTime = task['patientTime']
+            appointment = task['appointment']
+            taskRole = task['taskRole']
+            callbackURL= task['callbackURL']
+            #print(taskQueue.get()[1]['callbackURL'])
+            print(patientType)
 
-        if taskRole == "intake":
+            if taskRole == "intake":
 
-            #calculate intake duration
-            intake_duration = round(numpy.random.normal(60, 7.5))
+                #calculate intake duration
+                intake_duration = round(numpy.random.normal(60, 7.5))
+                print(patientTime)
+                #book resources
+                amount = get_resource_amount("intake", patientTime)
+                print(amount)
+                if amount > 0:
+                    update_resource_amount("intake", (amount - 1), patientTime, int(patientTime) + intake_duration )
+                else:
+                    while get_resource_amount("intake", patientTime) < 1:
+                        patientTime = int(patientTime) + 1
+                    amount = get_resource_amount("intake", patientTime)
+                    update_resource_amount("intake", (amount - 1), patientTime, int(patientTime) + intake_duration )
 
-            #book resources
-            amount = get_resource_amount()
-            update_resource_amount("intake", )
+                #decide if patient needs surgery
+                if "a" in patientType.lower():
+                    if "2" in patientType or "3" in patientType or "4" in patientType:
+                        surgery = True
+                    else:
+                        surgery = False
+                elif "b" in patientType.lower():
+                    if "3" in patientType or "4" in patientType:
+                        surgery = True
+                    else:
+                        surgery = False
+                else:
+                    surgery = False
+
+                #set patientTime to new Time
+                patientTime = int(patientTime) + intake_duration
+
+                # Prepare the callback response as JSON
+                callback_response = {
+                    'phantomPain': False,
+                    'patientTime': patientTime,
+                    'surgery': surgery
+                }
+
+                # Prepare the headers
+                headers = {
+                    'content-type': 'application/json',
+                    'CPEE-CALLBACK': 'true'
+                }
+
+                # Send the callback response as a JSON payload
+                requests.put(callbackURL, headers=headers, json=callback_response)
+                print(f"PUT request sent to callback_url: {callbackURL}")
+
+
+            elif taskRole == "surgery":
                 
+                #deque surgery nursing queue
+                surgeryNursingQueue.get()
+                surgeryNursingQueue.task_done()
+                
+                #calculate surgery duration
+                surgeryDuration = round(calculate_operation_time(patientType[-2:], "surgery"))
+
+                #book resources
+                amount = get_resource_amount("surgery", patientTime)
+                if amount > 0:
+                    update_resource_amount("surgery", (amount - 1), patientTime, int(patientTime) + surgeryDuration )
+                else:
+                    while get_resource_amount("surgery", patientTime) < 1:
+                        patientTime = int(patientTime) + 1
+                    amount = get_resource_amount("surgery", patientTime)
+                    update_resource_amount("surgery", (amount - 1), patientTime, int(patientTime) + surgeryDuration )
 
 
+                #new patientTIme
+                patientTime = int(patientTime) + surgeryDuration
 
-        elif taskRole == "surgery":
-            pass
-        elif taskRole == "nursing":
-            pass
-        elif taskRole == "ERTreatment":
-            pass
-        else:
-            pass
+                # Prepare the callback response as JSON
+                callback_response = {
+                    'patientTime': patientTime
+                }
 
-        # Prepare the callback response as JSON
-        callback_response = {
-            'task_id': 'task_id',
-            'status': 'completed',
-            'result': {'success': True}
-        }
+                # Prepare the headers
+                headers = {
+                    'content-type': 'application/json',
+                    'CPEE-CALLBACK': 'true'
+                }
 
-        # Prepare the headers
-        headers = {
-            'content-type': 'application/json',
-            'CPEE-CALLBACK': 'true'
-        }
+                # Send the callback response as a JSON payload
+                requests.put(callbackURL, headers=headers, json=callback_response)
+                print(f"PUT request sent to callback_url: {callbackURL}")
 
-        # Send the callback response as a JSON payload
-        requests.put(callbackURL, headers=headers, json=callback_response)
-        print(f"PUT request sent to callback_url: {callbackURL}")
+            elif taskRole == "nursing":
+
+                #deque surgery nursing queue
+                surgeryNursingQueue.get()
+                surgeryNursingQueue.task_done()
+
+                #calculate nursing duration
+                nursingDuration = round(calculate_operation_time(patientType[-2:], "nursing"))
+                
+                #decide which resource
+                if "a" in patientType.lower():
+                    resourceName = "a_bed"
+                elif "b" in patientType.lower():
+                    resourceName = "b_bed"
+                else:
+                    print("Error")
+                print(resourceName)
+                print(patientTime)
+                #book resources
+                amount = get_resource_amount(resourceName, patientTime)
+                print(amount)
+                if amount > 0:
+                    update_resource_amount(resourceName, (amount - 1), patientTime, int(patientTime) + nursingDuration)
+                else:
+                    while get_resource_amount(resourceName, patientTime) < 1:
+                        patientTime = int(patientTime) + 1
+                    amount = get_resource_amount(resourceName, patientTime)
+                    update_resource_amount(resourceName, (amount - 1), patientTime, int(patientTime) + nursingDuration)
+
+
+                #generate complications
+                complication = complication_generator(patientType)
+                #new patientTIme
+                patientTime = int(patientTime) + nursingDuration
+                # Prepare the callback response as JSON
+                callback_response = {
+                    'patientTime': patientTime,
+                    'complication': complication
+                }
+
+                # Prepare the headers
+                headers = {
+                    'content-type': 'application/json',
+                    'CPEE-CALLBACK': 'true'
+                }
+
+                # Send the callback response as a JSON payload
+                requests.put(callbackURL, headers=headers, json=callback_response)
+                print(f"PUT request sent to callback_url: {callbackURL}")
+                
+            elif taskRole == "ERTreatment":
+
+                ERDuration = round(numpy.random.normal(120,30))
+
+                #book resources
+                amount = get_resource_amount("emergency", patientTime)
+                if amount > 0:
+                    update_resource_amount("emergency", (amount - 1), patientTime, int(patientTime) + ERDuration)
+                else:
+                    while get_resource_amount("emergency", patientTime) < 1:
+                        patientTime = int(patientTime) + 1
+                    amount = get_resource_amount("emergency", patientTime)
+                    update_resource_amount("emergency", (amount - 1), patientTime, int(patientTime) + ERDuration)
+
+                diagnosis = ER_diagnosis_generator()
+                patientType = str(patientType+"-"+diagnosis)
+
+                #decide if patient needs surgery
+                if "a" in patientType.lower():
+                    if "2" in patientType or "3" in patientType or "4" in patientType:
+                        surgery = True
+                    else:
+                        surgery = False
+                elif "b" in patientType.lower():
+                    if "3" in patientType or "4" in patientType:
+                        surgery = True
+                    else:
+                        surgery = False
+                else:
+                    surgery = False
+
+                #decide if patient has phantom pain
+                random_number = random.random()
+                if random_number > 0.5:
+                    phantomPain = True
+                else:
+                    phantomPain = False
+
+                patientTime = int(patientTime) + ERDuration
+
+                # Prepare the callback response as JSON
+                callback_response = {
+                    'patientTime': patientTime,
+                    'surgery': surgery,
+                    'phantomPain': phantomPain,
+                    'patientType': patientType
+                }
+
+                # Prepare the headers
+                headers = {
+                    'content-type': 'application/json',
+                    'CPEE-CALLBACK': 'true'
+                }
+
+                # Send the callback response as a JSON payload
+                requests.put(callbackURL, headers=headers, json=callback_response)
+                print(f"PUT request sent to callback_url: {callbackURL}")
+            else:
+                print("Ungültige Taskrole")
+            taskQueue.task_done()
+        except Exception as e:
+            response.status = 500
+            print(e)
+            return {"error": str(e)}
 
 
 threading.Thread(target=worker, daemon=True).start()
@@ -363,7 +557,7 @@ def replan_patient():
         #simply replan for the next day update appointment and arrivaltime
         appointment = True
         arrivalTime = int(arrivalTime) + 24 * 60
-
+        print("Arrivaltime:" + str(arrivalTime))
         #prepare data
         data = {
             "behavior": "fork_running",
