@@ -628,7 +628,7 @@ def worker():
             print(e)
             return {"error": str(e)}
 
-
+#start Thread for the worker
 threading.Thread(target=worker, daemon=True).start()
 
 @route('/replanPatient', method = 'POST')#TODO Implement reasonable logic for replanning
