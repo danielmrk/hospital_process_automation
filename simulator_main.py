@@ -634,10 +634,12 @@ threading.Thread(target=worker, daemon=True).start()
 @route('/replanPatient', method = 'POST')#TODO Implement reasonable logic for replanning
 def replan_patient():
     try:
+        #read out patient information
         patientType = request.forms.get('patientType')
         patientId = request.forms.get('patientId')
         arrivalTime = request.forms.get('arrivalTime')
 
+        #Count how often an instance is replanned
         update_replanning_amount(patientId)
 
 
