@@ -129,6 +129,39 @@ def get_patient_time(patientId):
     else:
         return None
     
+def update_replanning_amount(patientId):
+    # Verbindung zur SQLite-Datenbank herstellen
+    conn = sqlite3.connect('patients.db')
+    cursor = conn.cursor()
+
+    # Abfrage ausführen
+    cursor.execute('''
+        SELECT amountReplanning FROM patients
+        WHERE patientID = ?
+    ''', (patientId,))
+
+    # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
+    result = cursor.fetchone()
+    if result[0] is None:
+        newAmount = 1
+    else:
+        newAmount = int(result[0]) + 1
+
+    cursor.execute('''
+        UPDATE patients
+        SET amountReplanning = ?
+        WHERE patientID = ?
+    ''', (newAmount, patientId))
+
+    conn.commit()
+    # Verbindung schließen
+    conn.close()
+
+    # Wenn ein Ergebnis vorhanden ist, gib die totalTime zurück, sonst gib None zurück
+    if result:
+        return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
+    else:
+        return None
     
 
 def set_patient_time(patient_id, new_total_time):
@@ -151,6 +184,30 @@ def set_patient_time(patient_id, new_total_time):
         print(f"Patient mit patientID {patient_id} wurde nicht gefunden.")
     else:
         print(f"Die totalTime des Patienten mit patientID {patient_id} wurde auf {new_total_time} Stunden aktualisiert.")
+
+    # Verbindung schließen
+    conn.close()
+
+def set_patient_arrivalTime(patient_id, new_arrival_time):
+    # Verbindung zur SQLite-Datenbank herstellen
+    conn = sqlite3.connect('patients.db')
+    cursor = conn.cursor()
+
+    # Update-Abfrage ausführen
+    cursor.execute('''
+        UPDATE patients
+        SET arrivalTime = ?
+        WHERE patientID = ?
+    ''', (new_arrival_time, patient_id))
+
+    # Änderungen speichern
+    conn.commit()
+
+    # Überprüfen, ob die Aktualisierung erfolgreich war
+    if cursor.rowcount == 0:
+        print(f"Patient mit patientID {patient_id} wurde nicht gefunden.")
+    else:
+        print(f"Die totalTime des Patienten mit patientID {patient_id} wurde auf {new_arrival_time} Stunden aktualisiert.")
 
     # Verbindung schließen
     conn.close()
@@ -314,6 +371,7 @@ def task_queue():
         elif taskRole == "releasing":
             # set patienttime to final total time in the database and set the process status to finished
             set_patient_time(patientId, (int(patientTime) - int(arrivalTime)))
+            set_patient_arrivalTime(patientId, arrivalTime)
             set_process_status(patientId , True)
             return {"patientType": patientType, "patientId": patientId}
         else:
@@ -334,6 +392,7 @@ def task_queue():
             #Queue to check how many patients are in surgery or nursing queue
             if taskRole == "surgery" or taskRole == "nursing":
                 surgeryNursingQueue.put("Patient")
+                print("surgeryNursingQueue:" + str(surgeryNursingQueue.qsize()))
 
             return HTTPResponse(
                 json.dumps({'Ack.:': 'Response later'}),
@@ -351,7 +410,7 @@ def task_queue():
 def worker():
     while True:
         try:
-            time.sleep(2)
+            time.sleep(0.5)
             #read out patient data out of queue
             print(list(taskQueue.queue))
             task = taskQueue.get()
@@ -578,6 +637,8 @@ def replan_patient():
         patientType = request.forms.get('patientType')
         patientId = request.forms.get('patientId')
         arrivalTime = request.forms.get('arrivalTime')
+
+        update_replanning_amount(patientId)
 
 
         #simply replan for the next day update appointment and arrivaltime

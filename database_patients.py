@@ -12,6 +12,7 @@ cursor.execute('''
         patientID INTEGER PRIMARY KEY,
         admissionDate TEXT,
         patientType TEXT,
+        arrivalTime INTEGER,
         totalTime INTEGER,
         processFinished BOOLEAN
     )
