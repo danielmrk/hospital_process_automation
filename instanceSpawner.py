@@ -10,129 +10,38 @@ import time
 import random
 
 
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "A1" + "\", \"arrivalTime\":\"" + str(500) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "A2" + "\", \"arrivalTime\":\"" + str(600) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "A3" + "\", \"arrivalTime\":\"" + str(620) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "A4" + "\", \"arrivalTime\":\"" + str(630) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "B1" + "\", \"arrivalTime\":\"" + str(640) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "B2" + "\", \"arrivalTime\":\"" + str(645) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "B3" + "\", \"arrivalTime\":\"" + str(650) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "B4" + "\", \"arrivalTime\":\"" + str(655) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "ER" + "\", \"arrivalTime\":\"" + str(660) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "A1" + "\", \"arrivalTime\":\"" + str(670) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "A2" + "\", \"arrivalTime\":\"" + str(700) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "A3" + "\", \"arrivalTime\":\"" + str(800) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "A4" + "\", \"arrivalTime\":\"" + str(850) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "B1" + "\", \"arrivalTime\":\"" + str(860) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "B2" + "\", \"arrivalTime\":\"" + str(870) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "B3" + "\", \"arrivalTime\":\"" + str(900) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "B4" + "\", \"arrivalTime\":\"" + str(950) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
-data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + "ER" + "\", \"arrivalTime\":\"" + str(960) + "\"}"
-            }
-        
-response = requests.post("https://cpee.org/flow/start/url/", data = data)
+counter = 500
+for i in range(30):
+
+    counter += 60
+    
+    randomNumber = random.random()
+    patientType = "A1"
+
+    if randomNumber < (1/9):
+        patientType = "A1"
+    elif randomNumber < (2/9):
+        patientType = "A2"
+    elif randomNumber < (3/9):
+        patientType = "A3"
+    elif randomNumber < (4/9):
+        patientType = "A4"
+    elif randomNumber < (5/9):
+        patientType = "B1"
+    elif randomNumber < (6/9):
+        patientType = "B2"
+    elif randomNumber < (7/9):
+        patientType = "B3"
+    elif randomNumber < (8/9):
+        patientType = "B4"
+    elif randomNumber < (9/9):
+        patientType = "ER"
+
+    data = {
+                "behavior": "fork_running",
+                "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
+                "init": "{\"patientType\":\"" + patientType + "\", \"arrivalTime\":\"" + str(counter) + "\"}"
+                }
+            
+    response = requests.post("https://cpee.org/flow/start/url/", data = data)
+    time.sleep(1)

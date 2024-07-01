@@ -1,87 +1,142 @@
-from typing import List, Tuple
-import random
 
-class Patient:
-    def __init__(self, patient_id, current_time, diagnosis, treatment_duration):
-        self.patient_id = patient_id
-        self.current_time = current_time
+import pandas as pd
+import random as rd
+from itertools import combinations
+import math
+
+class TS():
+    def __init__(self, patientId, currentTime, diagnosis, systemState, seed, tabu_tenure):
+        self.patientId = patientId
+        self.currentTime = currentTime
         self.diagnosis = diagnosis
-        self.treatment_duration = treatment_duration
+        self.systemState = systemState
+        self.seed = seed
+        self.tabu_tenure = tabu_tenure
+        self.Initial_solution = self.get_InitialSolution()
+        self.tabu_str, self.Best_solution, self.Best_objvalue = self.TSearch()
 
-class SystemState:
-    def __init__(self, current_patient_id, current_treatment_start, waiting_time):
-        self.current_patient_id = current_patient_id
-        self.current_treatment_start = current_treatment_start
-        self.waiting_time = waiting_time
+    def get_tabuestructure(self):
+        '''Takes a dict (input data)
+        Returns a dict of tabu attributes(pair of jobs that are swapped) as keys and [tabu_time, MoveValue]
+        '''
+        dict = {}
+        for swap in combinations(self.instance_dict.keys(), 2):
+            dict[swap] = {'tabu_time': 0, 'MoveValue': 0}
+        return dict
 
-def create_initial_solution(patients: List[Patient]) -> List[Tuple[int, int]]:
-    # Eine einfache initiale Lösung: Behandle die Patienten in der Reihenfolge ihres Eintreffens
-    solution = []
-    current_time = 0
-    for patient in patients:
-        start_time = max(current_time, patient.current_time)
-        solution.append((patient.patient_id, start_time))
-        current_time = start_time + patient.treatment_duration
-    return solution
+    def get_InitialSolution(self, show=False):
+        n_jobs = len(self.instance_dict) # Number of jobs
+        # Producing a random schedule of jobs
+        initial_solution = list(range(1, n_jobs+1))
+        rd.seed(self.seed)
+        rd.shuffle(initial_solution)
+        if show == True:
+            print("initial Random Solution: {}".format(initial_solution))
+        return initial_solution
 
-def evaluate_solution(solution: List[Tuple[int, int]], patients: List[Patient]) -> int:
-    total_waiting_time = 0
-    for patient_id, start_time in solution:
-        patient = next(p for p in patients if p.patient_id == patient_id)
-        waiting_time = start_time - patient.current_time
-        total_waiting_time += waiting_time
-    return total_waiting_time
+    def Objfun(self, solution, show = False):
+        '''Takes a set of scheduled jobs, dict (input data)
+        Return the objective function value of the solution
+        '''
+        dict = self.instance_dict
+        t = 0   #starting time
+        objfun_value = 0
+        for job in solution:
+            C_i = t + dict[job]["processing_time"]  # Completion time
+            d_i = dict[job]["due_date"]   # due date of the job
+            T_i = max(0, C_i - d_i)    #tardiness for the job
+            W_i = dict[job]["weight"]  # job's weight
+
+            objfun_value +=  W_i * T_i
+            t = C_i
+        if show == True:
+            print("\n","#"*8, "The Objective function value for {} solution schedule is: {}".format(solution ,objfun_value),"#"*8)
+        return objfun_value
+
+    def SwapMove(self, solution, i ,j):
+        '''Takes a list (solution)
+        returns a new neighbor solution with i, j swapped
+       '''
+        solution = solution.copy()
+        # job index in the solution:
+        i_index = solution.index(i)
+        j_index = solution.index(j)
+        #Swap
+        solution[i_index], solution[j_index] = solution[j_index], solution[i_index]
+        return solution
+
+    def TSearch(self):
+        '''The implementation Tabu search algorithm with short-term memory and pair_swap as Tabu attribute.
+        '''
+        # Parameters:
+        tenure =self.tabu_tenure
+        tabu_structure = self.get_tabuestructure()  # Initialize the data structures
+        best_solution = self.Initial_solution
+        best_objvalue = self.Objfun(best_solution)
+        current_solution = self.Initial_solution
+        current_objvalue = self.Objfun(current_solution)
+
+        print("#"*30, "Short-term memory TS with Tabu Tenure: {}\nInitial Solution: {}, Initial Objvalue: {}".format(
+            tenure, current_solution, current_objvalue), "#"*30, sep='\n\n')
+        iter = 1
+        Terminate = 0
+        while Terminate < 100:
+            print('\n\n### iter {}###  Current_Objvalue: {}, Best_Objvalue: {}'.format(iter, current_objvalue,
+                                                                                    best_objvalue))
+            # Searching the whole neighborhood of the current solution:
+            for move in tabu_structure:
+                candidate_solution = self.SwapMove(current_solution, move[0], move[1])
+                candidate_objvalue = self.Objfun(candidate_solution)
+                tabu_structure[move]['MoveValue'] = candidate_objvalue
+
+            # Admissible move
+            while True:
+                # select the move with the lowest ObjValue in the neighborhood (minimization)
+                best_move = min(tabu_structure, key =lambda x: tabu_structure[x]['MoveValue'])
+                MoveValue = tabu_structure[best_move]["MoveValue"]
+                tabu_time = tabu_structure[best_move]["tabu_time"]
+                # Not Tabu
+                if tabu_time < iter:
+                    # make the move
+                    current_solution = self.SwapMove(current_solution, best_move[0], best_move[1])
+                    current_objvalue = self.Objfun(current_solution)
+                    # Best Improving move
+                    if MoveValue < best_objvalue:
+                        best_solution = current_solution
+                        best_objvalue = current_objvalue
+                        print("   best_move: {}, Objvalue: {} => Best Improving => Admissible".format(best_move,
+                                                                                                      current_objvalue))
+                        Terminate = 0
+                    else:
+                        print("   ##Termination: {}## best_move: {}, Objvalue: {} => Least non-improving => "
+                              "Admissible".format(Terminate,best_move,
+                                                                                                           current_objvalue))
+                        Terminate += 1
+                    # update tabu_time for the move
+                    tabu_structure[best_move]['tabu_time'] = iter + tenure
+                    iter += 1
+                    break
+                # If tabu
+                else:
+                    # Aspiration
+                    if MoveValue < best_objvalue:
+                        # make the move
+                        current_solution = self.SwapMove(current_solution, best_move[0], best_move[1])
+                        current_objvalue = self.Objfun(current_solution)
+                        best_solution = current_solution
+                        best_objvalue = current_objvalue
+                        print("   best_move: {}, Objvalue: {} => Aspiration => Admissible".format(best_move,
+                                                                                                      current_objvalue))
+                        Terminate = 0
+                        iter += 1
+                        break
+                    else:
+                        tabu_structure[best_move]["MoveValue"] = float('inf')
+                        print("   best_move: {}, Objvalue: {} => Tabu => Inadmissible".format(best_move,
+                                                                                              current_objvalue))
+                        continue
+        print('#'*50 , "Performed iterations: {}".format(iter), "Best found Solution: {} , Objvalue: {}".format(best_solution,best_objvalue), sep="\n")
+        return tabu_structure, best_solution, best_objvalue
 
 
-def get_neighbors(solution: List[Tuple[int, int]]) -> List[List[Tuple[int, int]]]:
-    neighbors = []
-    for i in range(len(solution)):
-        for j in range(i + 1, len(solution)):
-            neighbor = solution.copy()
-            neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
-            neighbors.append(neighbor)
-    return neighbors
-
-
-def tabu_search(patients: List[Patient], max_iterations: int, tabu_tenure: int) -> List[Tuple[int, int]]:
-    current_solution = create_initial_solution(patients)
-    best_solution = current_solution
-    best_cost = evaluate_solution(best_solution, patients)
-    
-    tabu_list = []
-    tabu_list_size = tabu_tenure
-    
-    for _ in range(max_iterations):
-        neighbors = get_neighbors(current_solution)
-        neighbors = [neighbor for neighbor in neighbors if neighbor not in tabu_list]
-        
-        if not neighbors:
-            break
-        
-        current_solution = min(neighbors, key=lambda s: evaluate_solution(s, patients))
-        current_cost = evaluate_solution(current_solution, patients)
-        
-        if current_cost < best_cost:
-            best_solution = current_solution
-            best_cost = current_cost
-        
-        tabu_list.append(current_solution)
-        if len(tabu_list) > tabu_list_size:
-            tabu_list.pop(0)
-    
-    return best_solution
-
-
-# Beispielhafte Patientendaten
-patients = [
-    Patient(1, 0, "diagnosis1", 10),
-    Patient(2, 5, "diagnosis2", 15),
-    Patient(3, 12, "diagnosis3", 20)
-]
-
-# Tabu Search ausführen
-best_schedule = tabu_search(patients, max_iterations=100, tabu_tenure=5)
-
-# Ausgabe der besten Lösung
-for patient_id, start_time in best_schedule:
-    print(f"Patient {patient_id} beginnt um {start_time} Uhr")
+test = TS(Path="Data_instances/Instance_10.xlsx", seed = 2012, tabu_tenure=3)

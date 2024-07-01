@@ -336,68 +336,35 @@ def task_queue():
         appointment = request.forms.get('appointment')
         taskRole = request.forms.get('taskRole')
         callbackURL = request.headers['CPEE-CALLBACK']
+        print("Test1")
 
+        data = {"patientId": patientId,
+                "patientType": patientType,
+                "arrivalTime": arrivalTime,
+                "patientTime": patientTime,
+                "appointment": appointment,
+                "taskRole": taskRole,
+                "callbackURL": callbackURL}
 
-        #patients admission case without queue
+        print("Test2")
+        #add task to the queue to process it by the worker and prioritize it by patient time
+        data = json.dumps(data)
         if taskRole == "patientAdmission":
-
-            #set patienttime to arrivaltime for this run
-            patientTime = arrivalTime
-
-            #Assign PatientId if there is no and put patient into patient database
-            if not patientId:
-                patientId = insert_patient(arrivalTime, patientType)
-            else:
-                pass
-
-            #check if resources are available if patient has appointment
-            print("Test:")
-            print(get_resource_amount("intake", patientTime))
-            print(surgeryNursingQueue.qsize())
-            print(patientTime)
-            if appointment:           
-                if get_resource_amount("intake", patientTime) > 0 and surgeryNursingQueue.qsize() < 3:
-                    intake = True
-                else:
-                    intake = False
-            elif patientType == "ER":
-                intake = True
-            else:
-                intake = False
-
-            return {"patientType": patientType, "patientId": patientId, 
-                    "patientTime": patientTime,
-                    "intake": intake}
-        elif taskRole == "releasing":
-            # set patienttime to final total time in the database and set the process status to finished
-            set_patient_time(patientId, (int(patientTime) - int(arrivalTime)))
-            set_patient_arrivalTime(patientId, arrivalTime)
-            set_process_status(patientId , True)
-            return {"patientType": patientType, "patientId": patientId}
-        else:
-            data = {"patientId": patientId,
-                    "patientType": patientType,
-                    "arrivalTime": arrivalTime,
-                    "patientTime": patientTime,
-                    "appointment": appointment,
-                    "taskRole": taskRole,
-                    "callbackURL": callbackURL}
-
-
-            #add task to the queue to process it by the worker and prioritize it by patient time
-            data = json.dumps(data)
+            patientTime = 0
             taskQueue.put(PrioritizedItem(int(patientTime), data))
-            print(list(taskQueue.queue))
-
-            #Queue to check how many patients are in surgery or nursing queue
-            if taskRole == "surgery" or taskRole == "nursing":
-                surgeryNursingQueue.put("Patient")
-                print("surgeryNursingQueue:" + str(surgeryNursingQueue.qsize()))
-
-            return HTTPResponse(
-                json.dumps({'Ack.:': 'Response later'}),
-                status=202,
-                headers={'content-type': 'application/json', 'CPEE-CALLBACK': 'true'})
+        else:
+            taskQueue.put(PrioritizedItem(int(patientTime), data))
+        print(list(taskQueue.queue))
+        print("Test3")
+        #Queue to check how many patients are in surgery or nursing queue
+        if taskRole == "surgery" or taskRole == "nursing":
+            surgeryNursingQueue.put("Patient")
+            print("surgeryNursingQueue:" + str(surgeryNursingQueue.qsize()))
+        print("Test3")
+        return HTTPResponse(
+            json.dumps({'Ack.:': 'Response later'}),
+            status=202,
+            headers={'content-type': 'application/json', 'CPEE-CALLBACK': 'true'})
     
     
 
@@ -424,7 +391,51 @@ def worker():
             taskRole = task['taskRole']
             callbackURL= task['callbackURL']
 
-            if taskRole == "intake":
+            if taskRole == "patientAdmission":
+                print("test")
+                #set patienttime to arrivaltime for this run
+                patientTime = int(arrivalTime)
+
+                #Assign PatientId if there is no and put patient into patient database
+                if not patientId:
+                    patientId = insert_patient(arrivalTime, patientType)
+                else:
+                    pass
+
+                #check if resources are available if patient has appointment
+                print("Test:")
+                print(get_resource_amount("intake", patientTime))
+                print(surgeryNursingQueue.qsize())
+                print(patientTime)
+                if appointment:           
+                    if get_resource_amount("intake", patientTime) > 0 and surgeryNursingQueue.qsize() < 3:
+                        intake = True
+                    else:
+                        intake = False
+                elif patientType == "ER":
+                    intake = True
+                else:
+                    intake = False
+
+                                # Prepare the callback response as JSON
+                callback_response = {
+                    'patientType': patientType,
+                    'patientId': patientId, 
+                    'patientTime': patientTime,
+                    'intake': intake
+                }
+
+                # Prepare the headers
+                headers = {
+                    'content-type': 'application/json',
+                    'CPEE-CALLBACK': 'true'
+                }
+
+                # Send the callback response as a JSON payload
+                requests.put(callbackURL, headers=headers, json=callback_response)
+                print(f"PUT request sent to callback_url: {callbackURL}")
+
+            elif taskRole == "intake":
 
                 #calculate intake duration
                 intake_duration = round(numpy.random.normal(60, 7.5))
@@ -609,6 +620,25 @@ def worker():
                     'surgery': surgery,
                     'phantomPain': phantomPain,
                     'patientType': patientType
+                }
+
+                # Prepare the headers
+                headers = {
+                    'content-type': 'application/json',
+                    'CPEE-CALLBACK': 'true'
+                }
+
+                # Send the callback response as a JSON payload
+                requests.put(callbackURL, headers=headers, json=callback_response)
+                print(f"PUT request sent to callback_url: {callbackURL}")
+            elif taskRole == "releasing":
+                # set patienttime to final total time in the database and set the process status to finished
+                set_patient_time(patientId, (int(patientTime) - int(arrivalTime)))
+                set_patient_arrivalTime(patientId, arrivalTime)
+                set_process_status(patientId , True)
+                callback_response = {
+                    'patientType': patientType,
+                    'patientId': patientId,
                 }
 
                 # Prepare the headers
