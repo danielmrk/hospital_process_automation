@@ -3,6 +3,8 @@ import pandas as pd
 import random as rd
 from itertools import combinations
 import math
+from bottle import  route, run, template, request, response, HTTPResponse
+import json
 
 class TS():
     def __init__(self, patientId, currentTime, diagnosis, systemState, seed, tabu_tenure):
@@ -139,4 +141,16 @@ class TS():
         return tabu_structure, best_solution, best_objvalue
 
 
-test = TS(Path="Data_instances/Instance_10.xlsx", seed = 2012, tabu_tenure=3)
+@route('/planner', method = 'POST')
+def planner():
+    try:
+        info = request.forms.get('info')
+        info = json.loads(info)
+        print(info['diagnosis'])
+        return {"test": "test"}
+    except Exception as e:
+        response.status = 500
+        print(e)
+        return {"error": str(e)}
+    
+run(host='::1', port=48905)

@@ -9,6 +9,7 @@ import queue
 import time
 import random
 import threading
+from datetime import datetime, timedelta
 
 
 taskQueue = queue.PriorityQueue()
@@ -392,6 +393,15 @@ def worker():
                 #set patienttime to arrivaltime for this run
                 patientTime = int(arrivalTime)
 
+                #convert patienttime in correct format
+                start_date = datetime(2025, 1, 1)
+    
+                # Füge die Minuten hinzu
+                result_time = start_date + timedelta(minutes = patientTime)
+                
+                # Rückgabe im ISO 8601-Format
+                timeISO = result_time.isoformat()
+
                 #Assign PatientId if there is no and put patient into patient database
                 if not patientId:
                     patientId = insert_patient(arrivalTime, patientType)
@@ -418,7 +428,8 @@ def worker():
                     'patientType': patientType,
                     'patientId': patientId, 
                     'patientTime': patientTime,
-                    'intake': intake
+                    'intake': intake,
+                    'time' : timeISO
                 }
 
                 # Prepare the headers
