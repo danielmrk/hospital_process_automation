@@ -336,7 +336,6 @@ def task_queue():
         appointment = request.forms.get('appointment')
         taskRole = request.forms.get('taskRole')
         callbackURL = request.headers['CPEE-CALLBACK']
-        print("Test1")
 
         data = {"patientId": patientId,
                 "patientType": patientType,
@@ -346,7 +345,6 @@ def task_queue():
                 "taskRole": taskRole,
                 "callbackURL": callbackURL}
 
-        print("Test2")
         #add task to the queue to process it by the worker and prioritize it by patient time
         data = json.dumps(data)
         if taskRole == "patientAdmission":
@@ -355,12 +353,10 @@ def task_queue():
         else:
             taskQueue.put(PrioritizedItem(int(patientTime), data))
         print(list(taskQueue.queue))
-        print("Test3")
         #Queue to check how many patients are in surgery or nursing queue
         if taskRole == "surgery" or taskRole == "nursing":
             surgeryNursingQueue.put("Patient")
             print("surgeryNursingQueue:" + str(surgeryNursingQueue.qsize()))
-        print("Test3")
         return HTTPResponse(
             json.dumps({'Ack.:': 'Response later'}),
             status=202,
