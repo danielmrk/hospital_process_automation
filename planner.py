@@ -8,6 +8,46 @@ import json
 import sqlite3
 from datetime import datetime, timedelta
 
+
+def iso_to_global_minute(iso_time):
+    """
+    Wandelt eine ISO 8601-Zeit in eine globale Minute bezogen auf das Jahr um.
+
+    :param iso_time: Zeit in ISO 8601-Format (z.B. "2024-07-14T12:34:56")
+    :return: Globale Minute im Jahr
+    """
+    # ISO 8601-Zeit in ein datetime-Objekt umwandeln
+    dt = datetime.fromisoformat(iso_time)
+
+    # Beginn des Jahres für die Berechnung
+    start_of_year = datetime(year=dt.year, month=1, day=1)
+
+    # Differenz in Minuten berechnen
+    delta = dt - start_of_year
+    global_minute = delta.days * 24 * 60 + delta.seconds // 60
+
+    return global_minute
+
+def global_minute_to_iso(year, global_minute):
+    """
+    Wandelt eine globale Minute bezogen auf das Jahr in eine ISO 8601-Zeit um.
+
+    :param year: Jahr, auf das sich die globale Minute bezieht (z.B. 2024)
+    :param global_minute: Globale Minute im Jahr
+    :return: ISO 8601-Zeit (z.B. "2024-07-14T12:34:56")
+    """
+    # Beginn des Jahres
+    start_of_year = datetime(year=year, month=1, day=1)
+
+    # Zeitdifferenz berechnen
+    delta = timedelta(minutes=global_minute)
+
+    # ISO-Zeit berechnen
+    iso_time = start_of_year + delta
+
+    return iso_time.isoformat()
+
+
 def create_planning_calendar():
     # Verbindung zur SQLite-Datenbank herstellen
     conn = sqlite3.connect('planning_calender.db')
@@ -143,8 +183,66 @@ def generate_initial_solution(time, patientType):
         nursingDuration = 480
     else:
         nursingDuration = 960
-    
 
+    
+    
+def find_next_available_timeslot(start_time, intake_duration, surgery_duration, nursing_duration):
+    """
+    Prüft, ob Ressourcen für die angegebene Dauer in der Reihenfolge Intake, Surgery, Nursing frei sind.
+    """
+    conn = sqlite3.connect('planning_calender.db')
+    cursor = conn.cursor()
+
+    start_minute = iso_to_global_minute(start_time)
+    total_duration = intake_duration + surgery_duration + nursing_duration
+
+    def check_sequence(start_minute):
+        cursor.execute('''
+        SELECT globalMinute
+        FROM resources
+        WHERE globalMinute >= ? AND globalMinute < ? AND intake > 0
+        ORDER BY globalMinute
+        ''', (start_minute, start_minute + intake_duration))
+        intake_slots = cursor.fetchall()
+
+        if len(intake_slots) == intake_duration:
+            start_minute = intake_slots[-1][0] + 1
+            cursor.execute('''
+            SELECT globalMinute
+            FROM resources
+            WHERE globalMinute >= ? AND globalMinute < ? AND surgery > 0
+            ORDER BY globalMinute
+            ''', (start_minute, start_minute + surgery_duration))
+            surgery_slots = cursor.fetchall()
+
+            if len(surgery_slots) == surgery_duration:
+                start_minute = surgery_slots[-1][0] + 1
+                cursor.execute('''
+                SELECT globalMinute
+                FROM resources
+                WHERE globalMinute >= ? AND globalMinute < ? AND a_bed > 0 AND b_bed > 0
+                ORDER BY globalMinute
+                ''', (start_minute, start_minute + nursing_duration))
+                nursing_slots = cursor.fetchall()
+
+                if len(nursing_slots) == nursing_duration:
+                    return intake_slots, surgery_slots, nursing_slots
+        return None
+
+    cursor.execute('SELECT globalMinute FROM resources WHERE globalMinute >= ? ORDER BY globalMinute', (start_minute,))
+    all_minutes = cursor.fetchall()
+
+    for (minute,) in all_minutes:
+        result = check_sequence(minute)
+        if result:
+            intake_slots, surgery_slots, nursing_slots = result
+            iso_start = global_minute_to_iso(datetime.now().year, intake_slots[0][0])
+            print(f"Nächster verfügbarer Zeitslot:")
+            print(f"Startzeit: {iso_start}")
+            return iso_start
+
+    print("Kein verfügbarer Zeitslot gefunden.")
+    conn.close()
 
 
 # Bewertungsfunktion (z.B. Minimierung von Wartezeiten)

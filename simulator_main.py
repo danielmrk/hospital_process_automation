@@ -10,6 +10,8 @@ import time
 import random
 import threading
 from datetime import datetime, timedelta
+import os
+import subprocess
 
 
 taskQueue = queue.PriorityQueue()
@@ -19,6 +21,22 @@ surgeryNursingQueue = queue.Queue()
 
 #Amount of nursing in the queue
 nursingQueue = 0
+
+# Datei löschen
+datei_zum_loeschen = "resources_calender.db"
+if os.path.exists(datei_zum_loeschen):
+    os.remove(datei_zum_loeschen)
+    print(f"{datei_zum_loeschen} wurde gelöscht.")
+else:
+    print(f"{datei_zum_loeschen} existiert nicht.")
+
+# Datei über die Kommandozeile ausführen
+datei_zum_ausfuehren = "calenderDB.py"
+try:
+    subprocess.run(["python", datei_zum_ausfuehren], check=True)
+    print(f"{datei_zum_ausfuehren} wurde erfolgreich ausgeführt.")
+except subprocess.CalledProcessError as e:
+    print(f"Fehler beim Ausführen von {datei_zum_ausfuehren}: {e}")
 
 class PrioritizedItem:
     def __init__(self, priority, data):
@@ -409,10 +427,10 @@ def worker():
                     pass
 
                 #check if resources are available if patient has appointment
-                print("Test:")
-                print(get_resource_amount("intake", patientTime))
-                print(surgeryNursingQueue.qsize())
-                print(patientTime)
+                # print("Test:")
+                # print(get_resource_amount("intake", patientTime))
+                # print(surgeryNursingQueue.qsize())
+                # print(patientTime)
                 if appointment:           
                     if get_resource_amount("intake", patientTime) > 0 and surgeryNursingQueue.qsize() < 3:
                         intake = True
