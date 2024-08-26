@@ -33,7 +33,7 @@ else:
 # Datei über die Kommandozeile ausführen
 datei_zum_ausfuehren = "calenderDB.py"
 try:
-    subprocess.run(["python", datei_zum_ausfuehren], check=True)
+    subprocess.run(["python3", datei_zum_ausfuehren], check=True)
     print(f"{datei_zum_ausfuehren} wurde erfolgreich ausgeführt.")
 except subprocess.CalledProcessError as e:
     print(f"Fehler beim Ausführen von {datei_zum_ausfuehren}: {e}")
