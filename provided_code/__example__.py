@@ -67,6 +67,6 @@ class NaivePlanner(Planner):
 planner = NaivePlanner("./temp/event_log.csv", ["diagnosis"])
 problem = HealthcareProblem()
 simulator = Simulator(planner, problem)
-result = simulator.run(2*24)
+result = simulator.run(30*24)
 
 print(result)
