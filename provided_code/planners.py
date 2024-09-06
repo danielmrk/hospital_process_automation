@@ -8,6 +8,7 @@ from problems import HealthcareProblem
 from reporter import EventLogReporter
 import math
 import datetime
+import copy
 
 
 class Planner(ABC):
@@ -52,18 +53,43 @@ class Planner(ABC):
     def set_planner_helper(self, planner_helper):
         self.planner_helper = planner_helper
 
+
+    def random_time(self):
+    # Start- und Endzeiten definieren (8:00 Uhr und 17:00 Uhr)
+        start_time = datetime.datetime.strptime('08:00', '%H:%M')
+        end_time = datetime.datetime.strptime('17:00', '%H:%M')
+        
+        # Unterschied in Sekunden berechnen
+        delta = (end_time - start_time).total_seconds()
+        
+        # Zufällige Anzahl von Sekunden zwischen 0 und delta
+        zufaellige_sekunden = random.randint(0, int(delta))
+        
+        # Die zufällige Zeit durch Hinzufügen der Sekunden zur Startzeit berechnen
+        zufaellige_zeit = start_time + datetime.timedelta(seconds=zufaellige_sekunden)
+        
+        return zufaellige_zeit.time()  # Nur die Zeit ohne Datum zurückgeben
+
     # Erstelle eine initiale Planung
     def initial_schedule(self, plannable_elements):
-        # Die initiale Planung verteilt Patienten zufällig
-        schedule = []
-        for resource in range(self.max_resources):
-            assigned_patients = random.sample(patients, len(patients) // self.max_resources)
-            schedule.append(assigned_patients)
-            patients = [p for p in patients if p not in assigned_patients]
-        return schedule
+        elements = []
+    
+    # Iteriere über die plannable_elements, um Informationen zu sammeln und das Dictionary zu erstellen
+        for case_id, element_labels in sorted(plannable_elements.items()):
+            available_info = dict()  # Erstelle ein Dictionary
+            
+            # Füge Daten zum Dictionary hinzu
+            available_info['cid'] = case_id  # Fall-ID (case_id)
+            available_info['info'] = simulator.planner.planner_helper.get_case_data(case_id)  # Zusätzliche Fall-Daten
+            available_info['assigned_timeslot'] = self.random_time()
+            # Füge das Dictionary zur Liste der Elemente hinzu
+            elements.append(available_info)
+            elements_sorted = sorted(elements, key=lambda x: x['assigned_timeslot'])
+    
+        return elements_sorted
 
     # Bewertungsfunktion, z.B. Minimierung der Wartezeit
-    def evaluate_schedule(schedule):
+    def evaluate_schedule(self, elements_sorted, schedule):
         total_time = 0
         for resource in schedule:
             time = 0
@@ -73,16 +99,28 @@ class Planner(ABC):
         return total_time
 
     # Nachbarschaftsfunktion, die eine neue Planung generiert
-    def get_neighbors(schedule):
+    def get_neighbors(self, schedule):
         neighbors = []
-        for i in range(len(schedule)):
-            for j in range(i+1, len(schedule)):
-                if schedule[i] and schedule[j]:
-                    new_schedule = [list(row) for row in schedule]
-                    patient_to_swap = random.choice(new_schedule[i])
-                    new_schedule[i].remove(patient_to_swap)
-                    new_schedule[j].append(patient_to_swap)
-                    neighbors.append(new_schedule)
+        
+        # Anzahl der Patienten in der Planung
+        num_patients = len(schedule)
+
+        counter = 0
+        print("Anzahl planungen:")
+        
+        # Erzeuge Nachbarschaften durch Vertauschen der Zeitfenster zwischen zwei Patienten
+        for i in range(num_patients):
+            for j in range(i + 1, num_patients):
+                # Erstelle eine tiefe Kopie der ursprünglichen Planung, damit die Änderungen nicht die originale Liste beeinflussen
+                neighbor = copy.deepcopy(schedule)
+                #print(counter)
+                counter += 1
+                # Vertausche die assigned_timeslot von Patient i und Patient j
+                neighbor[i]['assigned_timeslot'], neighbor[j]['assigned_timeslot'] = neighbor[j]['assigned_timeslot'], neighbor[i]['assigned_timeslot']
+                
+                # Füge die veränderte Planung zur Nachbarschaftsliste hinzu
+                neighbor_sorted = sorted(neighbor, key=lambda x: x['assigned_timeslot'])
+                neighbors.append(neighbor)
         return neighbors
 
     # Hauptalgorithmus
@@ -189,8 +227,9 @@ class Planner(ABC):
         self.eventlog_reporter.callback(case_id, element, timestamp, resource, lifecycle_state)
 
     def plan(self, plannable_elements, simulation_time):
-        #print("------------------------------------------------------------------------------------------------------------------------planning start")
+        print("------------------------------------------------------------------------------------------------------------------------planning start")
         planned_elements = []
+        #print(plannable_elements.items())
         day = self.stunden_in_wochentag(simulation_time)
         #next_plannable_time = round((simulation_time + 24) * 2 + 0.5) / 2
         if day == "Montag" or day == "Dienstag" or day == "Mittwoch" or day == "Donnerstag" or day == "Sonntag":
@@ -208,6 +247,9 @@ class Planner(ABC):
             #print(len(plannable_elements))
               # Startdatum: 01.01.2018, 00:00 Uhr
             startdatum = datetime.datetime(2018, 1, 1, 0, 0)
+
+            schedule = self.initial_schedule(plannable_elements)
+            self.get_neighbors(schedule)
             
             # Datum und Uhrzeit berechnen, die den Stunden entsprechen
             zieldatum = startdatum + datetime.timedelta(hours=math.floor(simulation_time))
@@ -221,7 +263,6 @@ class Planner(ABC):
             available_info['time'] = simulation_time
             available_info['info'] = simulator.planner.planner_helper.get_case_data(case_id)
             available_info['resources'] = list(map(lambda el: dict({'cid': el[0]}, **el[1]), self.current_state.items()))
-            #print(available_info)
             
 
             ############### here you should send your data to your endpoint / use it with your planner functionality ############### 
@@ -229,13 +270,13 @@ class Planner(ABC):
             if givenumber:
                 for element_label in element_labels:
                     planned_elements.append((case_id, element_label, next_plannable_time))
-        #print("------------------------------------------------------------------------------------------------------------------------planning end")
+        print("------------------------------------------------------------------------------------------------------------------------planning end")
         return planned_elements
     
 
 planner = Planner("./temp/event_log.csv", ["diagnosis"])
 problem = HealthcareProblem()
 simulator = Simulator(planner, problem)
-result = simulator.run(365*24)
+result = simulator.run(2*24)
 
 print(result)
