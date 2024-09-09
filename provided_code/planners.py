@@ -9,6 +9,8 @@ from reporter import EventLogReporter
 import math
 import datetime
 import copy
+import sqlite3
+import numpy
 
 
 class Planner(ABC):
@@ -33,26 +35,91 @@ class Planner(ABC):
 
         # Beispielhafte Ressourcen (z.B. Anzahl der verfügbaren Behandlungszimmer)
         self.max_resources = 5
-
-        # Datei löschen
-        datei_zum_loeschen = "planning_tabu_calender.db"
-        if os.path.exists(datei_zum_loeschen):
-            os.remove(datei_zum_loeschen)
-            print(f"{datei_zum_loeschen} wurde gelöscht.")
-        else:
-            print(f"{datei_zum_loeschen} existiert nicht.")
-
-        # Datei über die Kommandozeile ausführen
-        datei_zum_ausfuehren = "database.py"
-        try:
-            subprocess.run(["python3", datei_zum_ausfuehren], check=True)
-            print(f"{datei_zum_ausfuehren} wurde erfolgreich ausgeführt.")
-        except subprocess.CalledProcessError as e:
-            print(f"Fehler beim Ausführen von {datei_zum_ausfuehren}: {e}")
     
     def set_planner_helper(self, planner_helper):
         self.planner_helper = planner_helper
 
+
+    def calculate_operation_time(self, diagnosis, operation):
+        if operation == "surgery":
+            if diagnosis == "A2":
+                return numpy.random.normal(60, 15)
+            if diagnosis == "A3":
+                return numpy.random.normal(120, 30)
+            if diagnosis == "A4":
+                return numpy.random.normal(240, 30)
+            if diagnosis == "B3":
+                return numpy.random.normal(240, 30)
+            if diagnosis == "B4":
+                return numpy.random.normal(240, 60)
+            else:
+                print("Incorrect PatientType")
+                return None
+        if operation == "nursing":
+            if diagnosis == "A1":
+                return numpy.random.normal(240, 30)
+            if diagnosis == "A2":
+                return numpy.random.normal(480, 120)
+            if diagnosis == "A3":
+                return numpy.random.normal(960, 120)
+            if diagnosis == "A4":
+                return numpy.random.normal(960, 120)
+            if diagnosis == "B1":
+                return numpy.random.normal(480, 120)
+            if diagnosis == "B2":
+                return numpy.random.normal(960, 120)
+            if diagnosis == "B3":
+                return numpy.random.normal(960, 240)
+            if diagnosis == "B4":
+                return numpy.random.normal(960, 240)
+            else:
+                print("Incorrect PatientType")
+                return None
+        else:
+            print("Incorrect Operation")
+            return None
+
+    def update_resource_amount(self, resourceName, amount, startTime, endTime):
+        conn = sqlite3.connect('planning_tabu_calender.db')
+        cursor = conn.cursor()
+
+        # Sicherheitscheck: Prüfe den Spaltennamen
+        valid_columns = ['intake', 'surgery', 'a_bed', 'b_bed', 'emergency']  # Beispiel für gültige Spaltennamen
+        if resourceName not in valid_columns:
+            raise ValueError("Ungültiger Spaltenname")
+        
+        query = f'''
+            UPDATE resources
+            SET {resourceName} = ?
+            WHERE globalMinute >= ? AND globalMinute <= ?
+        '''
+        cursor.execute(query, (amount, startTime, endTime))
+        conn.commit()
+        conn.close()
+
+    def get_resource_amount(self, resource_name, time):
+        conn = sqlite3.connect('planning_tabu_calender.db')
+        cursor = conn.cursor()
+
+        # Sicherheitscheck: Prüfe den Spaltennamen
+        valid_columns = ['intake', 'surgery', 'a_bed', 'b_bed', 'emergency']  # Beispiel für gültige Spaltennamen
+        if resource_name not in valid_columns:
+            raise ValueError("Ungültiger Spaltenname")
+        
+        # Abfrage ausführen
+        query = f'SELECT {resource_name} FROM resources WHERE globalMinute = ?'
+        cursor.execute(query, (time,))
+
+        # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
+        result = cursor.fetchone()
+        
+        # Verbindung schließen
+        conn.close()
+        # Wenn ein Ergebnis vorhanden ist, gib die totalTime zurück, sonst gib None zurück
+        if result:
+            return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
+        else:
+            return None
 
     def random_time(self):
     # Start- und Endzeiten definieren (8:00 Uhr und 17:00 Uhr)
@@ -89,14 +156,86 @@ class Planner(ABC):
         return elements_sorted
 
     # Bewertungsfunktion, z.B. Minimierung der Wartezeit
-    def evaluate_schedule(self, elements_sorted, schedule):
-        total_time = 0
-        for resource in schedule:
-            time = 0
-            for patient in resource:
-                time += patient.time
-            total_time += time
-        return total_time
+    def evaluate_schedule(self, elements_sorted):
+
+        #Create databse to evaluate solutions
+        # Datei löschen
+        datei_zum_loeschen = "planning_tabu_calender.db"
+        if os.path.exists(datei_zum_loeschen):
+            os.remove(datei_zum_loeschen)
+            print(f"{datei_zum_loeschen} wurde gelöscht.")
+        else:
+            print(f"{datei_zum_loeschen} existiert nicht.")
+
+        # Datei über die Kommandozeile ausführen
+        datei_zum_ausfuehren = "database.py"
+        try:
+            subprocess.run(["python3", datei_zum_ausfuehren], check=True)
+            print(f"{datei_zum_ausfuehren} wurde erfolgreich ausgeführt.")
+        except subprocess.CalledProcessError as e:
+            print(f"Fehler beim Ausführen von {datei_zum_ausfuehren}: {e}")
+
+
+        #Define Performance Indicators
+        intake_infeasible = 0
+        waiting_time = 0
+        free_spots_available = 0
+
+        # Plan Schedule in the database and give penalty for bad planning
+        for case in elements_sorted:
+            print(case['info']['diagnosis'])
+            time_start = case['assigned_timeslot']
+            time_start = math.floor(self.time_to_global_minutes(time_start))
+            print(time_start)
+            intake_amount = self.get_resource_amount("intake", time_start)
+            if intake_amount > 0:
+                intake_duration = intake_duration = round(numpy.random.normal(60, 7.5))
+                self.update_resource_amount("intake", (intake_amount - 1), time_start, time_start + intake_duration )
+                time_start = math.floor(time_start + intake_duration)
+            else:
+                intake_infeasible += 1
+            if case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
+                surgery_duration = self.calculate_operation_time(case['info']['diagnosis'], "surgery")
+                surgery_amount = self.get_resource_amount("surgery", time_start)
+                if surgery_amount > 0:
+                    self.update_resource_amount("surgery", (surgery_amount - 1), time_start, time_start + surgery_duration )
+                    time_start = math.floor(time_start + surgery_duration)
+                if surgery_amount == 1:
+                    free_spots_available += 1
+                if surgery_amount == 0:
+                    while self.get_resource_amount("surgery", time_start) < 1:
+                        time_start = math.floor(time_start + 1)
+                        print("Waiting")
+                    free_spots_available += 1
+                    waiting_time += 1
+                    amount = self.get_resource_amount("surgery", time_start)
+                    self.update_resource_amount("surgery", (amount - 1), time_start, int(time_start) + surgery_duration)
+            if case['info']['diagnosis'] == "A1" or case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4":
+                nursing_duration = self.calculate_operation_time(case['info']['diagnosis'], "nursing")
+                nursing_amount = self.get_resource_amount("a_bed", time_start)
+                print("nursing_amount")
+                print(nursing_amount)
+                if nursing_amount > 0:
+                    self.update_resource_amount("a_bed", (nursing_amount - 1), time_start, time_start + nursing_duration )
+                    time_start = math.floor(time_start + nursing_duration)
+                if nursing_amount == 1:
+                    free_spots_available += 1
+                if nursing_amount == 0:
+                    while self.get_resource_amount("a_bed", time_start) < 1:
+                        time_start = math.floor(time_start + 1)
+                        print("Waiting")
+                    free_spots_available += 1
+                    waiting_time += 1
+                    amount = self.get_resource_amount("a_bed", time_start)
+                    self.update_resource_amount("a_bed", (amount - 1), time_start, int(time_start) + nursing_duration)
+
+        score = free_spots_available + waiting_time + intake_infeasible  
+        print("Score :" + str(score))          
+
+        return score
+
+
+
 
     # Nachbarschaftsfunktion, die eine neue Planung generiert
     def get_neighbors(self, schedule):
@@ -120,7 +259,21 @@ class Planner(ABC):
                 
                 # Füge die veränderte Planung zur Nachbarschaftsliste hinzu
                 neighbor_sorted = sorted(neighbor, key=lambda x: x['assigned_timeslot'])
-                neighbors.append(neighbor)
+                neighbor_dict = dict()
+                neighbor_dict["ID"] = counter
+                neighbor_dict["Solution"] = neighbor_sorted
+                neighbors.append(neighbor_dict)
+        for neighbor1 in neighbors:
+            #print("Neue Solution")
+            for id in neighbor1['Solution']:
+                #print(id['cid'])
+                pass
+        if len(neighbors) < 1:
+            pass
+        else:
+            #print(self.time_to_global_minutes(neighbors[1]['Solution'][1]['assigned_timeslot']))
+            print(neighbors[0])
+            self.evaluate_schedule(neighbors[0]["Solution"])
         return neighbors
 
     # Hauptalgorithmus
@@ -196,6 +349,14 @@ class Planner(ABC):
         if day == "Sonntag":
             return "Montag"
 
+    def time_to_global_minutes(self, t):
+        """
+        Wandelt ein datetime.time-Objekt in globale Minuten seit Mitternacht um.
+        
+        :param t: Ein datetime.time-Objekt
+        :return: Anzahl der Minuten seit Mitternacht
+        """
+        return t.hour * 60 + t.minute + t.second / 60
 
     def report(self, case_id, element, timestamp, resource, lifecycle_state):
         if((lifecycle_state != EventType.CASE_ARRIVAL) and (lifecycle_state != EventType.COMPLETE_CASE)):
@@ -227,7 +388,7 @@ class Planner(ABC):
         self.eventlog_reporter.callback(case_id, element, timestamp, resource, lifecycle_state)
 
     def plan(self, plannable_elements, simulation_time):
-        print("------------------------------------------------------------------------------------------------------------------------planning start")
+        #print("------------------------------------------------------------------------------------------------------------------------planning start")
         planned_elements = []
         #print(plannable_elements.items())
         day = self.stunden_in_wochentag(simulation_time)
@@ -270,7 +431,7 @@ class Planner(ABC):
             if givenumber:
                 for element_label in element_labels:
                     planned_elements.append((case_id, element_label, next_plannable_time))
-        print("------------------------------------------------------------------------------------------------------------------------planning end")
+        #print("------------------------------------------------------------------------------------------------------------------------planning end")
         return planned_elements
     
 
