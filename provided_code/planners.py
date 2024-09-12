@@ -35,6 +35,22 @@ class Planner(ABC):
 
         # Beispielhafte Ressourcen (z.B. Anzahl der verfügbaren Behandlungszimmer)
         self.max_resources = 5
+        
+
+                # Anzahl der Minuten pro Tag
+        minutes_per_day = 1440
+
+        # Start- und Endminute für die Ressource (08:00 - 17:30)
+        start_minute = 8 * 60  # 08:00 Uhr = 480. Minute
+        end_minute = 17 * 60  # 17:30 Uhr = 1050. Minute
+
+
+        # 2D-Array erstellen, globale Minute + Ressource (oder 5 außerhalb des Zeitraums)
+        self.day_array_intake = [4 if start_minute <= minute <= end_minute else 0 for minute in range(minutes_per_day)]
+        self.day_array_surgery = [5 if start_minute <= minute <= end_minute else 1 for minute in range(minutes_per_day)]
+        self.day_array_a_nursing = [30] * 1440
+        self.day_array_b_nursing = [40] * 1440
+
     
     def set_planner_helper(self, planner_helper):
         self.planner_helper = planner_helper
@@ -79,47 +95,52 @@ class Planner(ABC):
             print("Incorrect Operation")
             return None
 
-    def update_resource_amount(self, resourceName, amount, startTime, endTime):
-        conn = sqlite3.connect('planning_tabu_calender.db')
-        cursor = conn.cursor()
+    def update_resource_amount(self,dayarray , startTime, endTime, update):
+        dayarray[startTime:endTime] = [update] * int(endTime - startTime)
+        return dayarray
 
-        # Sicherheitscheck: Prüfe den Spaltennamen
-        valid_columns = ['intake', 'surgery', 'a_bed', 'b_bed', 'emergency']  # Beispiel für gültige Spaltennamen
-        if resourceName not in valid_columns:
-            raise ValueError("Ungültiger Spaltenname")
+        # conn = sqlite3.connect('planning_tabu_calender.db')
+        # cursor = conn.cursor()
+
+        # # Sicherheitscheck: Prüfe den Spaltennamen
+        # valid_columns = ['intake', 'surgery', 'a_bed', 'b_bed', 'emergency']  # Beispiel für gültige Spaltennamen
+        # if resourceName not in valid_columns:
+        #     raise ValueError("Ungültiger Spaltenname")
         
-        query = f'''
-            UPDATE resources
-            SET {resourceName} = ?
-            WHERE globalMinute >= ? AND globalMinute <= ?
-        '''
-        cursor.execute(query, (amount, startTime, endTime))
-        conn.commit()
-        conn.close()
+        # query = f'''
+        #     UPDATE resources
+        #     SET {resourceName} = ?
+        #     WHERE globalMinute >= ? AND globalMinute <= ?
+        # '''
+        # cursor.execute(query, (amount, startTime, endTime))
+        # conn.commit()
+        # conn.close()
 
-    def get_resource_amount(self, resource_name, time):
-        conn = sqlite3.connect('planning_tabu_calender.db')
-        cursor = conn.cursor()
+    def get_resource_amount(self, day_array, time):
+        return day_array[time]
 
-        # Sicherheitscheck: Prüfe den Spaltennamen
-        valid_columns = ['intake', 'surgery', 'a_bed', 'b_bed', 'emergency']  # Beispiel für gültige Spaltennamen
-        if resource_name not in valid_columns:
-            raise ValueError("Ungültiger Spaltenname")
+        # conn = sqlite3.connect('planning_tabu_calender.db')
+        # cursor = conn.cursor()
+
+        # # Sicherheitscheck: Prüfe den Spaltennamen
+        # valid_columns = ['intake', 'surgery', 'a_bed', 'b_bed', 'emergency']  # Beispiel für gültige Spaltennamen
+        # if resource_name not in valid_columns:
+        #     raise ValueError("Ungültiger Spaltenname")
         
-        # Abfrage ausführen
-        query = f'SELECT {resource_name} FROM resources WHERE globalMinute = ?'
-        cursor.execute(query, (time,))
+        # # Abfrage ausführen
+        # query = f'SELECT {resource_name} FROM resources WHERE globalMinute = ?'
+        # cursor.execute(query, (time,))
 
-        # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
-        result = cursor.fetchone()
+        # # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
+        # result = cursor.fetchone()
         
-        # Verbindung schließen
-        conn.close()
-        # Wenn ein Ergebnis vorhanden ist, gib die totalTime zurück, sonst gib None zurück
-        if result:
-            return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
-        else:
-            return None
+        # # Verbindung schließen
+        # conn.close()
+        # # Wenn ein Ergebnis vorhanden ist, gib die totalTime zurück, sonst gib None zurück
+        # if result:
+        #     return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
+        # else:
+        #     return None
 
     def random_time(self):
     # Start- und Endzeiten definieren (8:00 Uhr und 17:00 Uhr)
@@ -160,20 +181,26 @@ class Planner(ABC):
 
         #Create databse to evaluate solutions
         # Datei löschen
-        datei_zum_loeschen = "planning_tabu_calender.db"
-        if os.path.exists(datei_zum_loeschen):
-            os.remove(datei_zum_loeschen)
-            print(f"{datei_zum_loeschen} wurde gelöscht.")
-        else:
-            print(f"{datei_zum_loeschen} existiert nicht.")
+        # datei_zum_loeschen = "planning_tabu_calender.db"
+        # if os.path.exists(datei_zum_loeschen):
+        #     os.remove(datei_zum_loeschen)
+        #     print(f"{datei_zum_loeschen} wurde gelöscht.")
+        # else:
+        #     print(f"{datei_zum_loeschen} existiert nicht.")
 
-        # Datei über die Kommandozeile ausführen
-        datei_zum_ausfuehren = "database.py"
-        try:
-            subprocess.run(["python3", datei_zum_ausfuehren], check=True)
-            print(f"{datei_zum_ausfuehren} wurde erfolgreich ausgeführt.")
-        except subprocess.CalledProcessError as e:
-            print(f"Fehler beim Ausführen von {datei_zum_ausfuehren}: {e}")
+        # # Datei über die Kommandozeile ausführen
+        # datei_zum_ausfuehren = "database.py"
+        # try:
+        #     subprocess.run(["python3", datei_zum_ausfuehren], check=True)
+        #     print(f"{datei_zum_ausfuehren} wurde erfolgreich ausgeführt.")
+        # except subprocess.CalledProcessError as e:
+        #     print(f"Fehler beim Ausführen von {datei_zum_ausfuehren}: {e}")
+
+        day_array_intake = self.day_array_intake
+        day_array_surgery = self.day_array_surgery
+        day_array_a_nursing = self.day_array_a_nursing
+        day_array_b_nursing = self.day_array_b_nursing
+
 
 
         #Define Performance Indicators
@@ -183,59 +210,80 @@ class Planner(ABC):
 
         # Plan Schedule in the database and give penalty for bad planning
         for case in elements_sorted:
-            print(case['info']['diagnosis'])
+            #print(case['info']['diagnosis'])
+            #print("Test" + str(case))
             time_start = case['assigned_timeslot']
-            time_start = math.floor(self.time_to_global_minutes(time_start))
-            print(time_start)
-            intake_amount = self.get_resource_amount("intake", time_start)
+            time_start = int(math.floor(self.time_to_global_minutes(time_start)))
+            #print(time_start)
+            intake_amount = self.get_resource_amount(day_array_intake, time_start)
+            #print(intake_amount)
+            intake_successful = False
             if intake_amount > 0:
                 intake_duration = intake_duration = round(numpy.random.normal(60, 7.5))
-                self.update_resource_amount("intake", (intake_amount - 1), time_start, time_start + intake_duration )
+                day_array_intake = self.update_resource_amount(day_array_intake, time_start, time_start + intake_duration, (intake_amount - 1) )
                 time_start = math.floor(time_start + intake_duration)
+                intake_successful = True
             else:
                 intake_infeasible += 1
-            if case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
-                surgery_duration = self.calculate_operation_time(case['info']['diagnosis'], "surgery")
-                surgery_amount = self.get_resource_amount("surgery", time_start)
-                if surgery_amount > 0:
-                    self.update_resource_amount("surgery", (surgery_amount - 1), time_start, time_start + surgery_duration )
-                    time_start = math.floor(time_start + surgery_duration)
-                if surgery_amount == 1:
-                    free_spots_available += 1
-                if surgery_amount == 0:
-                    while self.get_resource_amount("surgery", time_start) < 1:
-                        time_start = math.floor(time_start + 1)
-                        print("Waiting")
-                    free_spots_available += 1
-                    waiting_time += 1
-                    amount = self.get_resource_amount("surgery", time_start)
-                    self.update_resource_amount("surgery", (amount - 1), time_start, int(time_start) + surgery_duration)
-            if case['info']['diagnosis'] == "A1" or case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4":
-                nursing_duration = self.calculate_operation_time(case['info']['diagnosis'], "nursing")
-                nursing_amount = self.get_resource_amount("a_bed", time_start)
-                print("nursing_amount")
-                print(nursing_amount)
-                if nursing_amount > 0:
-                    self.update_resource_amount("a_bed", (nursing_amount - 1), time_start, time_start + nursing_duration )
-                    time_start = math.floor(time_start + nursing_duration)
-                if nursing_amount == 1:
-                    free_spots_available += 1
-                if nursing_amount == 0:
-                    while self.get_resource_amount("a_bed", time_start) < 1:
-                        time_start = math.floor(time_start + 1)
-                        print("Waiting")
-                    free_spots_available += 1
-                    waiting_time += 1
-                    amount = self.get_resource_amount("a_bed", time_start)
-                    self.update_resource_amount("a_bed", (amount - 1), time_start, int(time_start) + nursing_duration)
+            if intake_successful:
+                if case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
+                    surgery_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "surgery"))
+                    surgery_amount = self.get_resource_amount(day_array_surgery, time_start)
+                    if surgery_amount > 1:
+                        day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, time_start + surgery_duration, (surgery_amount - 1))
+                        time_start = math.floor(time_start + surgery_duration)
+                    if surgery_amount == 1:
+                        free_spots_available += 1
+                        day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, time_start + surgery_duration, (surgery_amount - 1))
+                    if surgery_amount == 0:
+                        while self.get_resource_amount(day_array_surgery, time_start) < 1:
+                            time_start = math.floor(time_start + 1)
+                            #print("Waiting")
+                        free_spots_available += 1
+                        waiting_time += 1
+                        amount = self.get_resource_amount(day_array_surgery, time_start)
+                        day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, int(time_start) + surgery_duration, (amount - 1))
+                if case['info']['diagnosis'] == "A1" or case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4":
+                    nursing_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "nursing"))
+                    nursing_amount = self.get_resource_amount(day_array_a_nursing, time_start)
+                    #print("nursing_amount")
+                    #print(nursing_amount)
+                    if nursing_amount > 0:
+                        day_array_a_nursing = self.update_resource_amount(day_array_a_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
+                        time_start = math.floor(time_start + nursing_duration)
+                    if nursing_amount == 1:
+                        free_spots_available += 1
+                    if nursing_amount == 0:
+                        while self.get_resource_amount(day_array_a_nursing, time_start) < 1:
+                            time_start = math.floor(time_start + 1)
+                            #print("Waiting")
+                        free_spots_available += 1
+                        waiting_time += 1
+                        amount = self.get_resource_amount(day_array_a_nursing, time_start)
+                        day_array_a_nursing = self.update_resource_amount(day_array_a_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))
+                if case['info']['diagnosis'] == "B1" or case['info']['diagnosis'] == "B2" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
+                    nursing_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "nursing"))
+                    nursing_amount = self.get_resource_amount(day_array_a_nursing, time_start)
+                    #print("nursing_amount")
+                    #print(nursing_amount)
+                    if nursing_amount > 0:
+                        day_array_b_nursing = self.update_resource_amount(day_array_b_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
+                        time_start = math.floor(time_start + nursing_duration)
+                    if nursing_amount == 1:
+                        free_spots_available += 1
+                    if nursing_amount == 0:
+                        while self.get_resource_amount(day_array_b_nursing, time_start) < 1:
+                            time_start = math.floor(time_start + 1)
+                            #print("Waiting")
+                        free_spots_available += 1
+                        waiting_time += 1
+                        amount = self.get_resource_amount(day_array_b_nursing, time_start)
+                        day_array_b_nursing = self.update_resource_amount(day_array_b_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))
 
         score = free_spots_available + waiting_time + intake_infeasible  
         print("Score :" + str(score))          
 
         return score
-
-
-
 
     # Nachbarschaftsfunktion, die eine neue Planung generiert
     def get_neighbors(self, schedule):
@@ -272,34 +320,41 @@ class Planner(ABC):
             pass
         else:
             #print(self.time_to_global_minutes(neighbors[1]['Solution'][1]['assigned_timeslot']))
-            print(neighbors[0])
+            #print(neighbors[0])
             self.evaluate_schedule(neighbors[0]["Solution"])
+            pass
         return neighbors
 
     # Hauptalgorithmus
-    def tabu_search(self, patients, max_iterations=100, tabu_tenure=10):
+    def tabu_search(self, plannable_elements, max_iterations=4, tabu_tenure=10):
         # Initiale Lösung
-        current_schedule = self.initial_schedule(patients)
+        current_schedule = self.initial_schedule(plannable_elements)
         best_schedule = current_schedule
         best_cost = self.evaluate_schedule(current_schedule)
-        
+        print("Initial Schedule tested")
         # Tabuliste (FIFO Queue)
         tabu_list = deque(maxlen=tabu_tenure)
         
         for iteration in range(max_iterations):
             neighbors = self.get_neighbors(current_schedule)
+            print("neighbors")
+            if len(neighbors) > 0:
+                #print(neighbors[0])
+                pass
             next_schedule = None
             next_cost = float('inf')
             
             for neighbor in neighbors:
-                cost = self.evaluate_schedule(neighbor)
+                cost = self.evaluate_schedule(neighbor['Solution'])
                 if neighbor not in tabu_list and cost < next_cost:
                     next_schedule = neighbor
                     next_cost = cost
-            
+                if cost < 20:
+                    break
+
             # Update der aktuellen Planung
             if next_schedule:
-                current_schedule = next_schedule
+                current_schedule = next_schedule['Solution']
                 tabu_list.append(current_schedule)
                 
                 # Update der besten Lösung
@@ -308,6 +363,7 @@ class Planner(ABC):
                     best_cost = next_cost
                     
             print(f"Iteration {iteration+1}: Beste Kosten = {best_cost}")
+            print(best_schedule)
         
         return best_schedule
 
@@ -409,6 +465,8 @@ class Planner(ABC):
               # Startdatum: 01.01.2018, 00:00 Uhr
             startdatum = datetime.datetime(2018, 1, 1, 0, 0)
 
+            #print(plannable_elements)
+            #best_schedule = self.tabu_search(plannable_elements)
             schedule = self.initial_schedule(plannable_elements)
             self.get_neighbors(schedule)
             
