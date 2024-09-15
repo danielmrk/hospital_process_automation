@@ -38,7 +38,7 @@ class Planner(ABC):
         
 
                 # Anzahl der Minuten pro Tag
-        minutes_per_day = 1440
+        minutes_per_2days = 2880
 
         # Start- und Endminute für die Ressource (08:00 - 17:30)
         start_minute = 8 * 60  # 08:00 Uhr = 480. Minute
@@ -46,10 +46,11 @@ class Planner(ABC):
 
 
         # 2D-Array erstellen, globale Minute + Ressource (oder 5 außerhalb des Zeitraums)
-        self.day_array_intake = [4 if start_minute <= minute <= end_minute else 0 for minute in range(minutes_per_day)]
-        self.day_array_surgery = [5 if start_minute <= minute <= end_minute else 1 for minute in range(minutes_per_day)]
-        self.day_array_a_nursing = [30] * 1440
-        self.day_array_b_nursing = [40] * 1440
+        self.day_array_intake = [4 if start_minute <= minute <= end_minute or start_minute + 1440 <= minute <= end_minute + 1440 else 0 for minute in range(minutes_per_2days)]
+        self.day_array_surgery = [5 if start_minute <= minute <= end_minute or start_minute + 1440 <= minute <= end_minute + 1440 else 1 for minute in range(minutes_per_2days)]
+        self.day_array_a_nursing = [30] * 2880
+        self.day_array_b_nursing = [40] * 2880
+        print(self.day_array_surgery)
 
     
     def set_planner_helper(self, planner_helper):
@@ -168,6 +169,7 @@ class Planner(ABC):
             
             # Füge Daten zum Dictionary hinzu
             available_info['cid'] = case_id  # Fall-ID (case_id)
+            available_info['label'] = element_labels
             available_info['info'] = simulator.planner.planner_helper.get_case_data(case_id)  # Zusätzliche Fall-Daten
             available_info['assigned_timeslot'] = self.random_time()
             # Füge das Dictionary zur Liste der Elemente hinzu
@@ -224,7 +226,7 @@ class Planner(ABC):
                 time_start = math.floor(time_start + intake_duration)
                 intake_successful = True
             else:
-                intake_infeasible += 1
+                intake_infeasible += 3
             if intake_successful:
                 if case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
                     surgery_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "surgery"))
@@ -278,10 +280,10 @@ class Planner(ABC):
                         free_spots_available += 1
                         waiting_time += 1
                         amount = self.get_resource_amount(day_array_b_nursing, time_start)
-                        day_array_b_nursing = self.update_resource_amount(day_array_b_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))
+                        day_array_b_nursing = self.update_resource_amount(day_array_b_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))              
 
         score = free_spots_available + waiting_time + intake_infeasible  
-        print("Score :" + str(score))          
+        #print("Score :" + str(score))          
 
         return score
 
@@ -293,7 +295,7 @@ class Planner(ABC):
         num_patients = len(schedule)
 
         counter = 0
-        print("Anzahl planungen:")
+        #print("Anzahl planungen:")
         
         # Erzeuge Nachbarschaften durch Vertauschen der Zeitfenster zwischen zwei Patienten
         for i in range(num_patients):
@@ -326,18 +328,20 @@ class Planner(ABC):
         return neighbors
 
     # Hauptalgorithmus
-    def tabu_search(self, plannable_elements, max_iterations=4, tabu_tenure=10):
+    def tabu_search(self, plannable_elements, max_iterations=5, tabu_tenure=10):
         # Initiale Lösung
         current_schedule = self.initial_schedule(plannable_elements)
+        #print("current_schedule")
+        #print(current_schedule)
         best_schedule = current_schedule
         best_cost = self.evaluate_schedule(current_schedule)
-        print("Initial Schedule tested")
+        #print("Initial Schedule tested")
         # Tabuliste (FIFO Queue)
         tabu_list = deque(maxlen=tabu_tenure)
         
         for iteration in range(max_iterations):
             neighbors = self.get_neighbors(current_schedule)
-            print("neighbors")
+            #print("neighbors")
             if len(neighbors) > 0:
                 #print(neighbors[0])
                 pass
@@ -349,8 +353,6 @@ class Planner(ABC):
                 if neighbor not in tabu_list and cost < next_cost:
                     next_schedule = neighbor
                     next_cost = cost
-                if cost < 20:
-                    break
 
             # Update der aktuellen Planung
             if next_schedule:
@@ -362,8 +364,7 @@ class Planner(ABC):
                     best_schedule = next_schedule
                     best_cost = next_cost
                     
-            print(f"Iteration {iteration+1}: Beste Kosten = {best_cost}")
-            print(best_schedule)
+            #print(f"Iteration {iteration+1}: Beste Kosten = {best_cost}")
         
         return best_schedule
 
@@ -386,7 +387,7 @@ class Planner(ABC):
         # Wochentag in einen String umwandeln
         wochentage = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
         wochentag = wochentage[wochentag_nummer]
-        
+        print("Wochentag : " + wochentag)
         return wochentag
     
     def next_business_day(self, day):
@@ -413,6 +414,15 @@ class Planner(ABC):
         :return: Anzahl der Minuten seit Mitternacht
         """
         return t.hour * 60 + t.minute + t.second / 60
+    
+    def time_to_global_hours(self, t):
+        """
+        Wandelt ein datetime.time-Objekt in globale Minuten seit Mitternacht um.
+        
+        :param t: Ein datetime.time-Objekt
+        :return: Anzahl der Minuten seit Mitternacht
+        """
+        return t.hour + t.minute / 60 + t.second / (60*60)
 
     def report(self, case_id, element, timestamp, resource, lifecycle_state):
         if((lifecycle_state != EventType.CASE_ARRIVAL) and (lifecycle_state != EventType.COMPLETE_CASE)):
@@ -445,57 +455,82 @@ class Planner(ABC):
 
     def plan(self, plannable_elements, simulation_time):
         #print("------------------------------------------------------------------------------------------------------------------------planning start")
-        planned_elements = []
-        #print(plannable_elements.items())
-        day = self.stunden_in_wochentag(simulation_time)
-        #next_plannable_time = round((simulation_time + 24) * 2 + 0.5) / 2
-        if day == "Montag" or day == "Dienstag" or day == "Mittwoch" or day == "Donnerstag" or day == "Sonntag":
-            next_plannable_time = round((simulation_time + 24) * 2 + 0.5) / 2
-        elif day == "Freitag":
-            next_plannable_time = round((simulation_time + 72) * 2 + 0.5) / 2
-        elif day == "Samstag":
-            next_plannable_time = round((simulation_time + 72) * 2 + 0.5) / 2
         givenumber = False
         if math.floor(simulation_time)/24 > self.daycounter:
             self.daycounter += 1
             givenumber = True
+            #print("test")
+        planned_elements = []
+        planned_elements_test = []
+        #print(simulation_time)
+        print(simulation_time)
+        day = self.stunden_in_wochentag(simulation_time)
+        next_plannable_time = round((simulation_time + 24) * 2 + 0.5) / 2
+        # if day == "Montag" or day == "Dienstag" or day == "Mittwoch" or day == "Donnerstag" or day == "Sonntag":
+        #     next_plannable_time = round((simulation_time + 24) * 2 + 0.5) / 2
+        # elif day == "Freitag":
+        #     next_plannable_time = round((simulation_time + 72) * 2 + 0.5) / 2
+        # elif day == "Samstag":
+        #     next_plannable_time = round((simulation_time + 72) * 2 + 0.5) / 2
         #print(self.daycounter)
         if givenumber:
             #print(len(plannable_elements))
               # Startdatum: 01.01.2018, 00:00 Uhr
             startdatum = datetime.datetime(2018, 1, 1, 0, 0)
 
-            #print(plannable_elements)
-            #best_schedule = self.tabu_search(plannable_elements)
-            schedule = self.initial_schedule(plannable_elements)
-            self.get_neighbors(schedule)
+            # best_schedule = self.tabu_search(plannable_elements)
+            # #print("best_schedule")
+            # #print(best_schedule)
+
+            # for case in best_schedule:
+            #     #print("Test")
+            #     #print(case)
+            #     case['assigned_timeslot'] = (self.time_to_global_hours(case['assigned_timeslot'])) + 24 + self.daycounter * 24
+            #     print(case['cid'])
+            #     print(case['label'][0])
+            #     print(case['assigned_timeslot'])
+            #     planned_elements.append((case['cid'], case['label'][0], case['assigned_timeslot']))
+
+
             
+            # print("best_schedule :")
+            # print(best_schedule)
+            # print("plannable elements")
+            # print(plannable_elements)
+            #print(best_schedule)
+            #schedule = self.initial_schedule(plannable_elements)
+            #self.get_neighbors(schedule)
+            #print(best_schedule[0])
             # Datum und Uhrzeit berechnen, die den Stunden entsprechen
             zieldatum = startdatum + datetime.timedelta(hours=math.floor(simulation_time))
             #print(zieldatum)
             #print(self.stunden_in_wochentag(math.floor(simulation_time)))
-        for case_id, element_labels in sorted(plannable_elements.items()):
-            #print(f"{case_id} - len: {len(element_labels)}")
+            for case_id, element_labels in sorted(plannable_elements.items()):
+                print(f"{case_id} - len: {len(element_labels)}")
 
-            available_info = dict()
-            available_info['cid'] = case_id
-            available_info['time'] = simulation_time
-            available_info['info'] = simulator.planner.planner_helper.get_case_data(case_id)
-            available_info['resources'] = list(map(lambda el: dict({'cid': el[0]}, **el[1]), self.current_state.items()))
-            
+                available_info = dict()
+                available_info['cid'] = case_id
+                available_info['time'] = simulation_time
+                available_info['info'] = simulator.planner.planner_helper.get_case_data(case_id)
+                available_info['resources'] = list(map(lambda el: dict({'cid': el[0]}, **el[1]), self.current_state.items()))
+                
+                
+                ############### here you should send your data to your endpoint / use it with your planner functionality ############### 
 
-            ############### here you should send your data to your endpoint / use it with your planner functionality ############### 
-
-            if givenumber:
+                # if givenumber:
+                #     #print("Elementlabel ")
                 for element_label in element_labels:
+                    #int(element_label)
                     planned_elements.append((case_id, element_label, next_plannable_time))
         #print("------------------------------------------------------------------------------------------------------------------------planning end")
+        print(planned_elements)
+        print(planned_elements_test)
         return planned_elements
     
 
 planner = Planner("./temp/event_log.csv", ["diagnosis"])
 problem = HealthcareProblem()
 simulator = Simulator(planner, problem)
-result = simulator.run(2*24)
+result = simulator.run(365*24)
 
 print(result)

@@ -41,7 +41,7 @@ class NaivePlanner(Planner):
         self.eventlog_reporter.callback(case_id, element, timestamp, resource, lifecycle_state)
 
     def plan(self, plannable_elements, simulation_time):
-        print("------------------------------------------------------------------------------------------------------------------------planning start")
+        #print("------------------------------------------------------------------------------------------------------------------------planning start")
         planned_elements = []
         next_plannable_time = round((simulation_time + 24) * 2 + 0.5) / 2
         for case_id, element_labels in sorted(plannable_elements.items()):
@@ -52,7 +52,7 @@ class NaivePlanner(Planner):
             available_info['time'] = simulation_time
             available_info['info'] = simulator.planner.planner_helper.get_case_data(case_id)
             available_info['resources'] = list(map(lambda el: dict({'cid': el[0]}, **el[1]), self.current_state.items()))
-            print(available_info)
+            #print(available_info)
             
 
             ############### here you should send your data to your endpoint / use it with your planner functionality ############### 
@@ -60,13 +60,13 @@ class NaivePlanner(Planner):
 
             for element_label in element_labels:
                 planned_elements.append((case_id, element_label, next_plannable_time))
-        print("------------------------------------------------------------------------------------------------------------------------planning end")
+        #print("------------------------------------------------------------------------------------------------------------------------planning end")
         return planned_elements
     
 
 planner = NaivePlanner("./temp/event_log.csv", ["diagnosis"])
 problem = HealthcareProblem()
 simulator = Simulator(planner, problem)
-result = simulator.run(30*24)
+result = simulator.run(365*24)
 
 print(result)
