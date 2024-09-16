@@ -263,7 +263,9 @@ def planner():
         #put_feedback_to_database(resources)
 
         info = json.loads(info)
-        print(info['diagnosis'])
+        print(cid)
+        print(time)
+        print(info)
         return {"test": "test"}
     except Exception as e:
         response.status = 500

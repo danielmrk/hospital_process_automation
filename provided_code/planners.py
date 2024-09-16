@@ -455,6 +455,7 @@ class Planner(ABC):
 
     def plan(self, plannable_elements, simulation_time):
         #print("------------------------------------------------------------------------------------------------------------------------planning start")
+        print(plannable_elements)
         givenumber = False
         if math.floor(simulation_time)/24 > self.daycounter:
             self.daycounter += 1
@@ -492,7 +493,7 @@ class Planner(ABC):
             #     planned_elements.append((case['cid'], case['label'][0], case['assigned_timeslot']))
 
 
-            
+
             # print("best_schedule :")
             # print(best_schedule)
             # print("plannable elements")
@@ -531,6 +532,6 @@ class Planner(ABC):
 planner = Planner("./temp/event_log.csv", ["diagnosis"])
 problem = HealthcareProblem()
 simulator = Simulator(planner, problem)
-result = simulator.run(365*24)
+result = simulator.run(1*24)
 
 print(result)
