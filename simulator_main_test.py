@@ -22,6 +22,47 @@ surgeryNursingQueue = queue.Queue()
 #Amount of nursing in the queue
 nursingQueue = 0
 
+#Array for initial state in minutes
+state_array = [[] for _ in range(525600)]
+
+#Array for initial state in minutes
+state_array = [[] for _ in range(525600)]
+
+        # Anzahl der Minuten pro Tag
+minutes_per_2days = 2880
+
+# Start- und Endminute für die Ressource (08:00 - 17:30)
+start_minute = 8 * 60  # 08:00 Uhr = 480. Minute
+end_minute = 17 * 60  # 17:30 Uhr = 1050. Minute
+
+day_array_a_nursing = [30] * 525600
+day_array_b_nursing = [40] * 525600
+day_array_emergency = [9] * 525600
+
+# Jahr mit Startdatum festlegen
+jahr_start = datetime(2018, 1, 1)
+jahr_minuten = 365 * 24 * 60  # Anzahl Minuten im Jahr (ohne Schaltjahr)
+
+day_array_intake = [None] * 525600
+day_array_surgery = [None] * 525600
+
+# Array füllen: 5 zwischen 08:00 und 17:00 Uhr, sonst 7
+for i in range(jahr_minuten):
+    aktuelle_zeit = jahr_start + timedelta(minutes=i)
+    wochentag = aktuelle_zeit.weekday()  # 0 = Montag, ..., 6 = Sonntag
+    if wochentag < 5:
+        if 8 <= aktuelle_zeit.hour < 17:
+            day_array_intake[i] = 4
+            day_array_surgery[i] = 5
+        else:
+            day_array_surgery[i] = 1
+            day_array_intake[i] = 0
+    else:
+        day_array_surgery[i] = 1
+        day_array_intake[i] = 0
+
+print("Erfolgreich erstellt")
+
 # Datei löschen
 datei_zum_loeschen = "resources_calender.db"
 if os.path.exists(datei_zum_loeschen):
@@ -60,47 +101,24 @@ def insert_patient(admission_date, patient_type):
     conn.close()
     return cursor.lastrowid
 
-def update_resource_amount(resourceName, amount, startTime, endTime):
-    conn = sqlite3.connect('resources_calender.db')
-    cursor = conn.cursor()
-
-    # Sicherheitscheck: Prüfe den Spaltennamen
-    valid_columns = ['intake', 'surgery', 'a_bed', 'b_bed', 'emergency']  # Beispiel für gültige Spaltennamen
-    if resourceName not in valid_columns:
-        raise ValueError("Ungültiger Spaltenname")
-    
-    query = f'''
-        UPDATE resources
-        SET {resourceName} = ?
-        WHERE globalMinute >= ? AND globalMinute <= ?
-    '''
-    cursor.execute(query, (amount, startTime, endTime))
-    conn.commit()
-    conn.close()
-
-def get_resource_amount(resource_name, time):
-    conn = sqlite3.connect('resources_calender.db')
-    cursor = conn.cursor()
-
-    # Sicherheitscheck: Prüfe den Spaltennamen
-    valid_columns = ['intake', 'surgery', 'a_bed', 'b_bed', 'emergency']  # Beispiel für gültige Spaltennamen
-    if resource_name not in valid_columns:
-        raise ValueError("Ungültiger Spaltenname")
-    
-    # Abfrage ausführen
-    query = f'SELECT {resource_name} FROM resources WHERE globalMinute = ?'
-    cursor.execute(query, (time,))
-
-    # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
-    result = cursor.fetchone()
-
-    # Verbindung schließen
-    conn.close()
-    # Wenn ein Ergebnis vorhanden ist, gib die totalTime zurück, sonst gib None zurück
-    if result:
-        return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
+def update_resource_amount(dayarray, update, startTime, endTime):
+    if dayarray == 1:
+        day_array_intake[startTime:endTime] = [update] * int(endTime - startTime)
+    elif dayarray == 2:
+        day_array_surgery[startTime:endTime] = [update] * int(endTime - startTime)
+    elif dayarray == 3:
+        day_array_a_nursing[startTime:endTime] = [update] * int(endTime - startTime)
+    elif dayarray == 4:
+        day_array_b_nursing[startTime:endTime] = [update] * int(endTime - startTime)
+    elif dayarray == 5:
+        day_array_emergency[startTime:endTime] = [update] * int(endTime - startTime)
     else:
-        return None
+        raise Exception("Updated failed")
+
+    return dayarray
+
+def get_resource_amount(day_array, time):
+    return day_array[time]
     
 def get_minute_next_day(patientTime):
     conn = sqlite3.connect('resources_calender.db')
@@ -392,7 +410,7 @@ def task_queue():
 def worker():
     while True:
         try:
-            time.sleep(0.5)
+            #time.sleep(0.5)
             #read out patient data out of queue
             print(list(taskQueue.queue))
             task = taskQueue.get()
@@ -405,6 +423,7 @@ def worker():
             appointment = task['appointment']
             taskRole = task['taskRole']
             callbackURL= task['callbackURL']
+            #patientTime = int(patientTime)
 
             if taskRole == "patientAdmission":
                 print("test")
@@ -432,7 +451,7 @@ def worker():
                 # print(surgeryNursingQueue.qsize())
                 # print(patientTime)
                 if appointment:           
-                    if get_resource_amount("intake", patientTime) > 0 and surgeryNursingQueue.qsize() < 3:
+                    if get_resource_amount(day_array_intake, int(patientTime)) > 0 and surgeryNursingQueue.qsize() < 3:
                         intake = True
                     else:
                         intake = False
@@ -466,18 +485,18 @@ def worker():
                 intake_duration = round(numpy.random.normal(60, 7.5))
 
                 #book resources
-                amount = get_resource_amount("intake", patientTime)
+                amount = get_resource_amount(day_array_intake, int(patientTime))
                 if amount > 0:
-                    update_resource_amount("intake", (amount - 1), patientTime, int(patientTime) + intake_duration )
+                    update_resource_amount(1, (amount - 1), int(patientTime), int(patientTime) + int(intake_duration))
                     for i in range(int(patientTime), int(patientTime) + intake_duration):
                         state_array[i].append({'cid': patientId, 'task': 'intake', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
                 else:
-                    while get_resource_amount("intake", patientTime) < 1:
+                    while get_resource_amount(day_array_intake, int(patientTime)) < 1:
                         patientTime = int(patientTime) + 1
                         state_array[int(patientTime)].append({'cid': patientId, 'task': 'intake', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': True})
                         print("Waiting")
-                    amount = get_resource_amount("intake", patientTime)
-                    update_resource_amount("intake", (amount - 1), patientTime, int(patientTime) + intake_duration )
+                    amount = get_resource_amount(day_array_intake, int(patientTime))
+                    update_resource_amount(1, (amount - 1), int(patientTime), int(patientTime) + intake_duration )
                     for i in range(int(patientTime), int(patientTime) + int(intake_duration)):
                         state_array[i].append({'cid': patientId, 'task': 'intake', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
 
@@ -526,18 +545,18 @@ def worker():
                 surgeryDuration = round(calculate_operation_time(patientType[-2:], "surgery"))
 
                 #book resources
-                amount = get_resource_amount("surgery", patientTime)
+                amount = get_resource_amount(day_array_surgery, int(patientTime))
                 if amount > 0:
-                    update_resource_amount("surgery", (amount - 1), patientTime, int(patientTime) + surgeryDuration )
+                    update_resource_amount(2, (amount - 1), int(patientTime), int(patientTime) + int(surgeryDuration) )
                     for i in range(int(patientTime), int(patientTime) + int(surgeryDuration)):
                         state_array[i].append({'cid': patientId, 'task': 'surgery', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
                 else:
-                    while get_resource_amount("surgery", patientTime) < 1:
+                    while get_resource_amount(day_array_surgery, int(patientTime)) < 1:
                         patientTime = int(patientTime) + 1
                         print("Waiting")
                         state_array[int(patientTime)].append({'cid': patientId, 'task': 'surgery', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': True})
-                    amount = get_resource_amount("surgery", patientTime)
-                    update_resource_amount("surgery", (amount - 1), patientTime, int(patientTime) + surgeryDuration )
+                    amount = get_resource_amount(day_array_surgery,int(patientTime))
+                    update_resource_amount(2, (amount - 1), int(patientTime), int(patientTime) + int(surgeryDuration) )
                     for i in range(int(patientTime), int(patientTime) + int(surgeryDuration)):
                         state_array[i].append({'cid': patientId, 'task': 'surgery', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
 
@@ -571,27 +590,39 @@ def worker():
                 
                 #decide which resource
                 if "a" in patientType.lower():
-                    resourceName = "a_bed"
+                                    #book resources
+                    amount = get_resource_amount(day_array_a_nursing, int(patientTime))
+                    if amount > 0:
+                        update_resource_amount(3, (amount - 1), int(patientTime), int(patientTime) + int(nursingDuration))
+                        for i in range(int(patientTime), int(patientTime) + int(nursingDuration)):
+                            state_array[i].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
+                    else:
+                        while get_resource_amount(day_array_a_nursing, int(patientTime)) < 1:
+                            patientTime = int(patientTime) + 1
+                            print("Waiting")
+                            state_array[int(patientTime)].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': True})
+                        amount = get_resource_amount(day_array_a_nursing, int(patientTime))
+                        update_resource_amount(3, (amount - 1), int(patientTime), int(patientTime) + int(nursingDuration))
+                        for i in range(int(patientTime), int(patientTime) + int(nursingDuration)):
+                            state_array[i].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
                 elif "b" in patientType.lower():
-                    resourceName = "b_bed"
+                        #book resources
+                    amount = get_resource_amount(day_array_b_nursing, int(patientTime))
+                    if amount > 0:
+                        update_resource_amount(4, (amount - 1), int(patientTime), int(patientTime) + int(nursingDuration))
+                        for i in range(int(patientTime), int(patientTime) + int(nursingDuration)):
+                            state_array[i].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
+                    else:
+                        while get_resource_amount(day_array_b_nursing, int(patientTime)) < 1:
+                            patientTime = int(patientTime) + 1
+                            print("Waiting")
+                            state_array[int(patientTime)].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': True})
+                        amount = get_resource_amount(day_array_b_nursing, int(patientTime))
+                        update_resource_amount(4, (amount - 1), int(patientTime), int(patientTime) + int(nursingDuration))
+                        for i in range(int(patientTime), int(patientTime) + int(nursingDuration)):
+                            state_array[i].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
                 else:
-                    print("Error")
-
-                #book resources
-                amount = get_resource_amount(resourceName, patientTime)
-                if amount > 0:
-                    update_resource_amount(resourceName, (amount - 1), patientTime, int(patientTime) + nursingDuration)
-                    for i in range(int(patientTime), int(patientTime) + int(nursingDuration)):
-                        state_array[i].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
-                else:
-                    while get_resource_amount(resourceName, patientTime) < 1:
-                        patientTime = int(patientTime) + 1
-                        print("Waiting")
-                        state_array[int(patientTime)].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': True})
-                    amount = get_resource_amount(resourceName, patientTime)
-                    update_resource_amount(resourceName, (amount - 1), patientTime, int(patientTime) + nursingDuration)
-                    for i in range(int(patientTime), int(patientTime) + int(nursingDuration)):
-                        state_array[i].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
+                    raise Exception("Patienttype not identified")
 
 
                 #generate complications
@@ -619,17 +650,17 @@ def worker():
                 ERDuration = round(numpy.random.normal(120,30))
 
                 #book resources
-                amount = get_resource_amount("emergency", patientTime)
+                amount = get_resource_amount(day_array_emergency, int(patientTime))
                 if amount > 0:
-                    update_resource_amount("emergency", (amount - 1), patientTime, int(patientTime) + int(ERDuration))
+                    update_resource_amount(5, (amount - 1), int(patientTime), int(patientTime) + int(ERDuration))
                     for i in range(int(patientTime), int(patientTime) + ERDuration):
                         state_array[i].append({'cid': patientId, 'task': 'ERTreatment', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
                 else:
-                    while get_resource_amount("emergency", patientTime) < 1:
+                    while get_resource_amount(day_array_emergency, int(patientTime)) < 1:
                         patientTime = int(patientTime) + 1
                         state_array[int(patientTime)].append({'cid': patientId, 'task': 'ERTreatment', 'start': patientTime/60 , 'info': {'diagnosis': patientType}, 'wait': True})
-                    amount = get_resource_amount("emergency", patientTime)
-                    update_resource_amount("emergency", (amount - 1), patientTime, int(patientTime) + int(ERDuration))
+                    amount = get_resource_amount(day_array_emergency, int(patientTime))
+                    update_resource_amount(5, (amount - 1), int(patientTime), int(patientTime) + int(ERDuration))
                     for i in range(int(patientTime), int(patientTime) + ERDuration):
                         state_array[i].append({'cid': patientId, 'task': 'ERTreatment', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
 
@@ -737,6 +768,17 @@ def replan_patient():
         response = requests.post("https://cpee.org/flow/start/url/", data = data)
         print(response.forms.get('CPEE-INSTANCE'))
         return {"patientType": patientType, "patientId": patientId}
+
+    except Exception as e:
+        response.status = 500
+        return {"error": str(e)}
+    
+@route('/get_state', method = 'POST')#TODO Implement reasonable logic for replanning
+def get_system_state():
+    try:
+        arrivalTime = request.forms.get('arrivalTime')
+        system_state = state_array[int(arrivalTime)]
+        return {"resources": system_state}
 
     except Exception as e:
         response.status = 500

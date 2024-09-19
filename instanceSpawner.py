@@ -44,4 +44,4 @@ for i in range(30):
                 }
             
     response = requests.post("https://cpee.org/flow/start/url/", data = data)
-    time.sleep(1)
+    time.sleep(0.2)

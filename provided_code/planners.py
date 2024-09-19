@@ -50,7 +50,15 @@ class Planner(ABC):
         self.day_array_surgery = [5 if start_minute <= minute <= end_minute or start_minute + 1440 <= minute <= end_minute + 1440 else 1 for minute in range(minutes_per_2days)]
         self.day_array_a_nursing = [30] * 2880
         self.day_array_b_nursing = [40] * 2880
-        print(self.day_array_surgery)
+        
+
+        self.array = [[] for _ in range(525600)]
+        patientTime = 500
+        patientId = 1
+        patientType = "A1"
+
+        self.array[patientTime].append({'cid': patientId, 'task': 'intake', 'start': patientTime/60 , 'info': {'diagnosis': patientType}, 'wait': True})
+        print(self.array[500])
 
     
     def set_planner_helper(self, planner_helper):
@@ -455,7 +463,7 @@ class Planner(ABC):
 
     def plan(self, plannable_elements, simulation_time):
         #print("------------------------------------------------------------------------------------------------------------------------planning start")
-        print(plannable_elements)
+        #print(plannable_elements)
         givenumber = False
         if math.floor(simulation_time)/24 > self.daycounter:
             self.daycounter += 1
@@ -464,7 +472,7 @@ class Planner(ABC):
         planned_elements = []
         planned_elements_test = []
         #print(simulation_time)
-        print(simulation_time)
+        #print(simulation_time)
         day = self.stunden_in_wochentag(simulation_time)
         next_plannable_time = round((simulation_time + 24) * 2 + 0.5) / 2
         # if day == "Montag" or day == "Dienstag" or day == "Mittwoch" or day == "Donnerstag" or day == "Sonntag":
@@ -515,7 +523,8 @@ class Planner(ABC):
                 available_info['info'] = simulator.planner.planner_helper.get_case_data(case_id)
                 available_info['resources'] = list(map(lambda el: dict({'cid': el[0]}, **el[1]), self.current_state.items()))
                 
-                
+                print("Test:")
+                print(available_info['resources'])
                 ############### here you should send your data to your endpoint / use it with your planner functionality ############### 
 
                 # if givenumber:
@@ -532,6 +541,6 @@ class Planner(ABC):
 planner = Planner("./temp/event_log.csv", ["diagnosis"])
 problem = HealthcareProblem()
 simulator = Simulator(planner, problem)
-result = simulator.run(1*24)
+result = simulator.run(10*24)
 
 print(result)
