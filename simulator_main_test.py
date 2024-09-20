@@ -12,7 +12,7 @@ import threading
 from datetime import datetime, timedelta
 import os
 import subprocess
-
+from planner import Planner
 
 taskQueue = queue.PriorityQueue()
 
@@ -45,6 +45,8 @@ jahr_minuten = 365 * 24 * 60  # Anzahl Minuten im Jahr (ohne Schaltjahr)
 
 day_array_intake = [None] * 525600
 day_array_surgery = [None] * 525600
+
+plannable_elements = []
 
 # Array füllen: 5 zwischen 08:00 und 17:00 Uhr, sonst 7
 for i in range(jahr_minuten):
@@ -753,6 +755,13 @@ def replan_patient():
         #Count how often an instance is replanned
         update_replanning_amount(patientId)
 
+        data = dict()
+        data['cid'] = patientId
+        data['time'] = int(arrivalTime)
+        data['info'] = patientType
+        data['resources'] = "Placeholder"
+
+        plannable_elements.append(data)
 
         #simply replan for the next day update appointment and arrivaltime
         appointment = True

@@ -463,6 +463,7 @@ class Planner(ABC):
 
     def plan(self, plannable_elements, simulation_time):
         #print("------------------------------------------------------------------------------------------------------------------------planning start")
+        #print("Plannable Elements:")
         #print(plannable_elements)
         givenumber = False
         if math.floor(simulation_time)/24 > self.daycounter:
@@ -474,7 +475,7 @@ class Planner(ABC):
         #print(simulation_time)
         #print(simulation_time)
         day = self.stunden_in_wochentag(simulation_time)
-        next_plannable_time = round((simulation_time + 24) * 2 + 0.5) / 2
+        #next_plannable_time = round((simulation_time + 24) * 2 + 0.5) / 2
         # if day == "Montag" or day == "Dienstag" or day == "Mittwoch" or day == "Donnerstag" or day == "Sonntag":
         #     next_plannable_time = round((simulation_time + 24) * 2 + 0.5) / 2
         # elif day == "Freitag":
@@ -487,18 +488,18 @@ class Planner(ABC):
               # Startdatum: 01.01.2018, 00:00 Uhr
             startdatum = datetime.datetime(2018, 1, 1, 0, 0)
 
-            # best_schedule = self.tabu_search(plannable_elements)
-            # #print("best_schedule")
-            # #print(best_schedule)
+            best_schedule = self.tabu_search(plannable_elements)
+            print("best_schedule")
+            print(best_schedule)
 
-            # for case in best_schedule:
-            #     #print("Test")
-            #     #print(case)
-            #     case['assigned_timeslot'] = (self.time_to_global_hours(case['assigned_timeslot'])) + 24 + self.daycounter * 24
-            #     print(case['cid'])
-            #     print(case['label'][0])
-            #     print(case['assigned_timeslot'])
-            #     planned_elements.append((case['cid'], case['label'][0], case['assigned_timeslot']))
+            for case in best_schedule:
+                #print("Test")
+                #print(case)
+                case['assigned_timeslot'] = (self.time_to_global_hours(case['assigned_timeslot'])) + 24 + self.daycounter * 24
+                print(case['cid'])
+                print(case['label'][0])
+                print(case['assigned_timeslot'])
+                planned_elements.append((case['cid'], case['label'][0], case['assigned_timeslot']))
 
 
 
@@ -515,7 +516,7 @@ class Planner(ABC):
             #print(zieldatum)
             #print(self.stunden_in_wochentag(math.floor(simulation_time)))
             for case_id, element_labels in sorted(plannable_elements.items()):
-                print(f"{case_id} - len: {len(element_labels)}")
+                #print(f"{case_id} - len: {len(element_labels)}")
 
                 available_info = dict()
                 available_info['cid'] = case_id
@@ -523,18 +524,18 @@ class Planner(ABC):
                 available_info['info'] = simulator.planner.planner_helper.get_case_data(case_id)
                 available_info['resources'] = list(map(lambda el: dict({'cid': el[0]}, **el[1]), self.current_state.items()))
                 
-                print("Test:")
-                print(available_info['resources'])
+                #print("Test:")
+                #print(available_info['resources'])
                 ############### here you should send your data to your endpoint / use it with your planner functionality ############### 
 
                 # if givenumber:
                 #     #print("Elementlabel ")
-                for element_label in element_labels:
-                    #int(element_label)
-                    planned_elements.append((case_id, element_label, next_plannable_time))
+                # for element_label in element_labels:
+                #     int(element_label)
+                #     planned_elements.append((case_id, element_label, next_plannable_time))
         #print("------------------------------------------------------------------------------------------------------------------------planning end")
-        print(planned_elements)
-        print(planned_elements_test)
+        #print(planned_elements)
+        #print(planned_elements_test)
         return planned_elements
     
 
