@@ -167,6 +167,30 @@ def get_patient_time(patientId):
         return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
     else:
         return None
+
+
+def get_patient_replanning_amount(patientId):
+    # Verbindung zur SQLite-Datenbank herstellen
+    conn = sqlite3.connect('patients.db')
+    cursor = conn.cursor()
+
+    # Abfrage ausführen
+    cursor.execute('''
+        SELECT amountReplanning FROM patients
+        WHERE patientID = ?
+    ''', (patientId,))
+
+    # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
+    result = cursor.fetchone()
+
+    # Verbindung schließen
+    conn.close()
+
+    # Wenn ein Ergebnis vorhanden ist, gib die totalTime zurück, sonst gib None zurück
+    if result:
+        return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
+    else:
+        return None
     
 def update_replanning_amount(patientId):
     # Verbindung zur SQLite-Datenbank herstellen
@@ -250,6 +274,15 @@ def set_patient_arrivalTime(patient_id, new_arrival_time):
 
     # Verbindung schließen
     conn.close()
+
+def time_to_global_minutes(t):
+        """
+        Wandelt ein datetime.time-Objekt in globale Minuten seit Mitternacht um.
+        
+        :param t: Ein datetime.time-Objekt
+        :return: Anzahl der Minuten seit Mitternacht
+        """
+        return t.hour * 60 + t.minute + t.second / 60
 
 def set_process_status(patient_id, status):
     # Verbindung zur SQLite-Datenbank herstellen
@@ -387,7 +420,7 @@ def task_queue():
         #add task to the queue to process it by the worker and prioritize it by patient time
         data = json.dumps(data)
         if taskRole == "patientAdmission":
-            patientTime = 0
+            patientTime = arrivalTime
             taskQueue.put(PrioritizedItem(int(patientTime), data))
         else:
             taskQueue.put(PrioritizedItem(int(patientTime), data))
@@ -417,7 +450,6 @@ def worker():
             print(list(taskQueue.queue))
             task = taskQueue.get()
             task = json.loads(task.data)
-            print(task)
             patientId = task['patientId']
             patientType = task['patientType']
             arrivalTime = task['arrivalTime']
@@ -426,6 +458,8 @@ def worker():
             taskRole = task['taskRole']
             callbackURL= task['callbackURL']
             #patientTime = int(patientTime)
+            print("----------------------------------------------------------------------------------------------------------")
+            print(arrivalTime)
 
             if taskRole == "patientAdmission":
                 print("test")
@@ -748,35 +782,46 @@ threading.Thread(target=worker, daemon=True).start()
 def replan_patient():
     try:
         #read out patient information
-        patientType = request.forms.get('patientType')
-        patientId = request.forms.get('patientId')
-        arrivalTime = request.forms.get('arrivalTime')
+        info = request.forms.get('info')
+        cid = request.forms.get('cid')
+        time = request.forms.get('time')
+        resources = request.forms.get('resources')
+
+
+
 
         #Count how often an instance is replanned
-        update_replanning_amount(patientId)
+        update_replanning_amount(cid)
 
         data = dict()
-        data['cid'] = patientId
-        data['time'] = int(arrivalTime)
-        data['info'] = patientType
+        data['cid'] = cid
+        data['time'] = int(time)
+        data['info'] = info
         data['resources'] = "Placeholder"
+        try:
+            info = json.loads(info)           
+        except json.JSONDecodeError:
+            print("Error: 'info' ist kein gültiger JSON-String")
+
 
         plannable_elements.append(data)
 
         #simply replan for the next day update appointment and arrivaltime
         appointment = True
-        arrivalTime = int(arrivalTime) + get_minute_next_day(arrivalTime)
+        print("Time")
+        print(time)
+        arrivalTime = int(time) + get_minute_next_day(time)
         print("Arrivaltime:" + str(arrivalTime))
         #prepare data
         data = {
             "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main.xml",
-            "init": "{\"patientType\":\"" + str(patientType)+ "\",\"patientId\":\"" + str(patientId) + "\", \"arrivalTime\":\"" + str(arrivalTime) + "\",\"appointment\":\"" + str(appointment) + "\"}"
+            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml",
+            "init": "{\"info\":\"" + str(info)+  "\",\"patientType\":\"" + str(info['diagnosis']) + "\",\"patientId\":\"" + str(cid) + "\", \"arrivalTime\":\"" + str(arrivalTime) + "\",\"appointment\":\"" + str(appointment) + "\"}"
             }
         
         response = requests.post("https://cpee.org/flow/start/url/", data = data)
         print(response.forms.get('CPEE-INSTANCE'))
-        return {"patientType": patientType, "patientId": patientId}
+        return {"patientType": info, "patientId": cid}
 
     except Exception as e:
         response.status = 500

@@ -28,7 +28,7 @@ class Planner(ABC):
         self.eventlog_reporter = EventLogReporter(eventlog_file, data_columns)
         self.planned_patients = set()
         self.current_state = dict() 
-        self.daycounter = 0
+        self.daycounter = 1
         self.planner_helper = None
         # Definiere eine Struktur für Patienteninformationen
         self.Patient = namedtuple('Patient', ['id', 'type', 'time'])
@@ -58,7 +58,7 @@ class Planner(ABC):
         patientType = "A1"
 
         self.array[patientTime].append({'cid': patientId, 'task': 'intake', 'start': patientTime/60 , 'info': {'diagnosis': patientType}, 'wait': True})
-        print(self.array[500])
+        #print(self.array[500])
 
     
     def set_planner_helper(self, planner_helper):
@@ -234,7 +234,7 @@ class Planner(ABC):
                 time_start = math.floor(time_start + intake_duration)
                 intake_successful = True
             else:
-                intake_infeasible += 3
+                intake_infeasible += 3 # TODO Variabel je nachdem ob ein patient schon öfters da war
             if intake_successful:
                 if case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
                     surgery_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "surgery"))
@@ -242,14 +242,15 @@ class Planner(ABC):
                     if surgery_amount > 1:
                         day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, time_start + surgery_duration, (surgery_amount - 1))
                         time_start = math.floor(time_start + surgery_duration)
-                    if surgery_amount == 1:
-                        free_spots_available += 1
+                    elif surgery_amount == 1:
+                        free_spots_available += 5
                         day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, time_start + surgery_duration, (surgery_amount - 1))
-                    if surgery_amount == 0:
+                        time_start = math.floor(time_start + surgery_duration)
+                    elif surgery_amount == 0:
                         while self.get_resource_amount(day_array_surgery, time_start) < 1:
                             time_start = math.floor(time_start + 1)
                             #print("Waiting")
-                        free_spots_available += 1
+                        free_spots_available += 5
                         waiting_time += 1
                         amount = self.get_resource_amount(day_array_surgery, time_start)
                         day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, int(time_start) + surgery_duration, (amount - 1))
@@ -261,17 +262,19 @@ class Planner(ABC):
                     if nursing_amount > 0:
                         day_array_a_nursing = self.update_resource_amount(day_array_a_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
                         time_start = math.floor(time_start + nursing_duration)
-                    if nursing_amount == 1:
-                        free_spots_available += 1
-                    if nursing_amount == 0:
+                    elif nursing_amount == 1:
+                        day_array_a_nursing = self.update_resource_amount(day_array_a_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
+                        free_spots_available += 5
+                        time_start = math.floor(time_start + nursing_duration)
+                    elif nursing_amount == 0:
                         while self.get_resource_amount(day_array_a_nursing, time_start) < 1:
                             time_start = math.floor(time_start + 1)
                             #print("Waiting")
-                        free_spots_available += 1
+                        free_spots_available += 5
                         waiting_time += 1
                         amount = self.get_resource_amount(day_array_a_nursing, time_start)
                         day_array_a_nursing = self.update_resource_amount(day_array_a_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))
-                if case['info']['diagnosis'] == "B1" or case['info']['diagnosis'] == "B2" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
+                elif case['info']['diagnosis'] == "B1" or case['info']['diagnosis'] == "B2" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
                     nursing_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "nursing"))
                     nursing_amount = self.get_resource_amount(day_array_a_nursing, time_start)
                     #print("nursing_amount")
@@ -279,13 +282,15 @@ class Planner(ABC):
                     if nursing_amount > 0:
                         day_array_b_nursing = self.update_resource_amount(day_array_b_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
                         time_start = math.floor(time_start + nursing_duration)
-                    if nursing_amount == 1:
-                        free_spots_available += 1
-                    if nursing_amount == 0:
+                    elif nursing_amount == 1:
+                        day_array_b_nursing = self.update_resource_amount(day_array_b_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
+                        free_spots_available += 5
+                        time_start = math.floor(time_start + nursing_duration)
+                    elif nursing_amount == 0:
                         while self.get_resource_amount(day_array_b_nursing, time_start) < 1:
                             time_start = math.floor(time_start + 1)
                             #print("Waiting")
-                        free_spots_available += 1
+                        free_spots_available += 5
                         waiting_time += 1
                         amount = self.get_resource_amount(day_array_b_nursing, time_start)
                         day_array_b_nursing = self.update_resource_amount(day_array_b_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))              
@@ -336,7 +341,7 @@ class Planner(ABC):
         return neighbors
 
     # Hauptalgorithmus
-    def tabu_search(self, plannable_elements, max_iterations=5, tabu_tenure=10):
+    def tabu_search(self, plannable_elements, max_iterations=3, tabu_tenure=10):
         # Initiale Lösung
         current_schedule = self.initial_schedule(plannable_elements)
         #print("current_schedule")
@@ -489,13 +494,27 @@ class Planner(ABC):
             startdatum = datetime.datetime(2018, 1, 1, 0, 0)
 
             best_schedule = self.tabu_search(plannable_elements)
-            print("best_schedule")
-            print(best_schedule)
+            #print("best_schedule")
+            #print(best_schedule)
 
             for case in best_schedule:
-                #print("Test")
-                #print(case)
-                case['assigned_timeslot'] = (self.time_to_global_hours(case['assigned_timeslot'])) + 24 + self.daycounter * 24
+                print("Test")
+                print(self.daycounter)
+                print(simulation_time)
+                #print((self.time_to_global_hours(case['assigned_timeslot'])))
+                #print((self.time_to_global_hours(case['assigned_timeslot'])) + 24 + math.ceil(simulation_time/24) * 24)
+                if 'assigned_timeslot' in case:
+                    print(case['assigned_timeslot'])
+                else:
+                    print("assigned_timeslot existiert nicht im case")
+                print(case)
+                print("test")
+                print(case['assigned_timeslot'])
+                print(self.time_to_global_hours(case['assigned_timeslot']))
+                if day == "Freitag" or day == "Samstag" or day == "Donnerstag":
+                    case['assigned_timeslot'] = (int(self.time_to_global_hours(case['assigned_timeslot']))) + 24 + 24 + random.randint(1, 4) * 24 + math.ceil(simulation_time/24) * 24
+                else:
+                    case['assigned_timeslot'] = (int(self.time_to_global_hours(case['assigned_timeslot']))) + 24 + math.ceil(simulation_time/24) * 24
                 print(case['cid'])
                 print(case['label'][0])
                 print(case['assigned_timeslot'])
@@ -515,14 +534,14 @@ class Planner(ABC):
             zieldatum = startdatum + datetime.timedelta(hours=math.floor(simulation_time))
             #print(zieldatum)
             #print(self.stunden_in_wochentag(math.floor(simulation_time)))
-            for case_id, element_labels in sorted(plannable_elements.items()):
-                #print(f"{case_id} - len: {len(element_labels)}")
+            # for case_id, element_labels in sorted(plannable_elements.items()):
+            #     #print(f"{case_id} - len: {len(element_labels)}")
 
-                available_info = dict()
-                available_info['cid'] = case_id
-                available_info['time'] = simulation_time
-                available_info['info'] = simulator.planner.planner_helper.get_case_data(case_id)
-                available_info['resources'] = list(map(lambda el: dict({'cid': el[0]}, **el[1]), self.current_state.items()))
+            #     available_info = dict()
+            #     available_info['cid'] = case_id
+            #     available_info['time'] = simulation_time
+            #     available_info['info'] = simulator.planner.planner_helper.get_case_data(case_id)
+            #     available_info['resources'] = list(map(lambda el: dict({'cid': el[0]}, **el[1]), self.current_state.items()))
                 
                 #print("Test:")
                 #print(available_info['resources'])
@@ -542,6 +561,6 @@ class Planner(ABC):
 planner = Planner("./temp/event_log.csv", ["diagnosis"])
 problem = HealthcareProblem()
 simulator = Simulator(planner, problem)
-result = simulator.run(10*24)
+result = simulator.run(365*24)
 
 print(result)
