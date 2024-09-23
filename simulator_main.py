@@ -22,6 +22,9 @@ surgeryNursingQueue = queue.Queue()
 #Amount of nursing in the queue
 nursingQueue = 0
 
+#Array for initial state in minutes
+state_array = [[] for _ in range(525600)]
+
 # Datei löschen
 datei_zum_loeschen = "resources_calender.db"
 if os.path.exists(datei_zum_loeschen):

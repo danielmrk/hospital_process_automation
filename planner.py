@@ -146,7 +146,7 @@ class Planner(ABC):
     def random_time(self):
     # Start- und Endzeiten definieren (8:00 Uhr und 17:00 Uhr)
         start_time = datetime.datetime.strptime('08:00', '%H:%M')
-        end_time = datetime.datetime.strptime('17:00', '%H:%M')
+        end_time = datetime.datetime.strptime('15:00', '%H:%M')
         
         # Unterschied in Sekunden berechnen
         delta = (end_time - start_time).total_seconds()

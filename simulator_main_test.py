@@ -25,8 +25,6 @@ nursingQueue = 0
 #Array for initial state in minutes
 state_array = [[] for _ in range(525600)]
 
-#Array for initial state in minutes
-state_array = [[] for _ in range(525600)]
 
         # Anzahl der Minuten pro Tag
 minutes_per_2days = 2880
@@ -424,7 +422,7 @@ def task_queue():
             taskQueue.put(PrioritizedItem(int(patientTime), data))
         else:
             taskQueue.put(PrioritizedItem(int(patientTime), data))
-        print(list(taskQueue.queue))
+        #print(list(taskQueue.queue))
         #Queue to check how many patients are in surgery or nursing queue
         if taskRole == "surgery" or taskRole == "nursing":
             surgeryNursingQueue.put("Patient")
@@ -445,9 +443,10 @@ def task_queue():
 def worker():
     while True:
         try:
-            #time.sleep(0.5)
+            time.sleep(0.5)
             #read out patient data out of queue
-            print(list(taskQueue.queue))
+            print("Queuesize: ")
+            print(taskQueue.qsize())
             task = taskQueue.get()
             task = json.loads(task.data)
             patientId = task['patientId']
@@ -462,7 +461,7 @@ def worker():
             print(arrivalTime)
 
             if taskRole == "patientAdmission":
-                print("test")
+                #print("test")
                 #set patienttime to arrivaltime for this run
                 patientTime = int(arrivalTime)
 
@@ -797,7 +796,7 @@ def replan_patient():
         data['cid'] = cid
         data['time'] = int(time)
         data['info'] = info
-        data['resources'] = "Placeholder"
+        data['resources'] = resources
         try:
             info = json.loads(info)           
         except json.JSONDecodeError:
@@ -805,13 +804,15 @@ def replan_patient():
 
 
         plannable_elements.append(data)
+        print("plannable_elements: ")
+        print(plannable_elements)
 
         #simply replan for the next day update appointment and arrivaltime
         appointment = True
-        print("Time")
-        print(time)
+        #print("Time")
+        #print(time)
         arrivalTime = int(time) + get_minute_next_day(time)
-        print("Arrivaltime:" + str(arrivalTime))
+        #print("Arrivaltime:" + str(arrivalTime))
         #prepare data
         data = {
             "behavior": "fork_running",

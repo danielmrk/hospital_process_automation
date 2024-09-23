@@ -154,7 +154,7 @@ class Planner(ABC):
     def random_time(self):
     # Start- und Endzeiten definieren (8:00 Uhr und 17:00 Uhr)
         start_time = datetime.datetime.strptime('08:00', '%H:%M')
-        end_time = datetime.datetime.strptime('17:00', '%H:%M')
+        end_time = datetime.datetime.strptime('15:00', '%H:%M')
         
         # Unterschied in Sekunden berechnen
         delta = (end_time - start_time).total_seconds()
@@ -355,9 +355,9 @@ class Planner(ABC):
         for iteration in range(max_iterations):
             neighbors = self.get_neighbors(current_schedule)
             #print("neighbors")
-            if len(neighbors) > 0:
-                #print(neighbors[0])
-                pass
+            # if len(neighbors) > 0:
+            #     #print(neighbors[0])
+            #     pass
             next_schedule = None
             next_cost = float('inf')
             
@@ -378,7 +378,8 @@ class Planner(ABC):
                     best_cost = next_cost
                     
             #print(f"Iteration {iteration+1}: Beste Kosten = {best_cost}")
-        
+            if 'Solution' in best_schedule:
+                best_schedule = best_schedule['Solution']
         return best_schedule
 
     def stunden_in_wochentag(self, stunden_seit_start):
@@ -492,10 +493,11 @@ class Planner(ABC):
             #print(len(plannable_elements))
               # Startdatum: 01.01.2018, 00:00 Uhr
             startdatum = datetime.datetime(2018, 1, 1, 0, 0)
-
+            print("plannable_elements")
+            print(plannable_elements.items())
             best_schedule = self.tabu_search(plannable_elements)
-            #print("best_schedule")
-            #print(best_schedule)
+            print("best_schedule")
+            print(best_schedule)
 
             for case in best_schedule:
                 print("Test")
