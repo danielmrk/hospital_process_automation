@@ -9,6 +9,7 @@ import random
 import random
 from datetime import datetime, timedelta
 from planner import Planner
+import threading
 
 # Beispielhafte Patientenarten
 patient_types = ['A1', 'B1', 'A2', 'B4']
@@ -39,7 +40,7 @@ def generate_patient(patient_id):
     return data
 
 # Liste von 30 zufälligen Patienten erstellen
-patients = [generate_patient(i) for i in range(1, 150)]
+patients = [generate_patient(i) for i in range(1, 20)]
 
 # Ergebnis anzeigen
 for patient in patients:

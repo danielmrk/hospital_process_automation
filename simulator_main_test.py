@@ -25,13 +25,8 @@ nursingQueue = 0
 #Array for initial state in minutes
 state_array = [[] for _ in range(525600)]
 
+simulationTime = 0
 
-        # Anzahl der Minuten pro Tag
-minutes_per_2days = 2880
-
-# Start- und Endminute für die Ressource (08:00 - 17:30)
-start_minute = 8 * 60  # 08:00 Uhr = 480. Minute
-end_minute = 17 * 60  # 17:30 Uhr = 1050. Minute
 
 day_array_a_nursing = [30] * 525600
 day_array_b_nursing = [40] * 525600
@@ -63,21 +58,21 @@ for i in range(jahr_minuten):
 
 print("Erfolgreich erstellt")
 
-# Datei löschen
-datei_zum_loeschen = "resources_calender.db"
-if os.path.exists(datei_zum_loeschen):
-    os.remove(datei_zum_loeschen)
-    print(f"{datei_zum_loeschen} wurde gelöscht.")
-else:
-    print(f"{datei_zum_loeschen} existiert nicht.")
+# # Datei löschen
+# datei_zum_loeschen = "resources_calender.db"
+# if os.path.exists(datei_zum_loeschen):
+#     os.remove(datei_zum_loeschen)
+#     print(f"{datei_zum_loeschen} wurde gelöscht.")
+# else:
+#     print(f"{datei_zum_loeschen} existiert nicht.")
 
-# Datei über die Kommandozeile ausführen
-datei_zum_ausfuehren = "calenderDB.py"
-try:
-    subprocess.run(["python3", datei_zum_ausfuehren], check=True)
-    print(f"{datei_zum_ausfuehren} wurde erfolgreich ausgeführt.")
-except subprocess.CalledProcessError as e:
-    print(f"Fehler beim Ausführen von {datei_zum_ausfuehren}: {e}")
+# # Datei über die Kommandozeile ausführen
+# datei_zum_ausfuehren = "calenderDB.py"
+# try:
+#     subprocess.run(["python3", datei_zum_ausfuehren], check=True)
+#     print(f"{datei_zum_ausfuehren} wurde erfolgreich ausgeführt.")
+# except subprocess.CalledProcessError as e:
+#     print(f"Fehler beim Ausführen von {datei_zum_ausfuehren}: {e}")
 
 class PrioritizedItem:
     def __init__(self, priority, data):
@@ -395,6 +390,16 @@ def ER_diagnosis_generator():
     return diagnosis
 
 
+def timeSimulator(speed_factor, end_minute):
+    time_counter = datetime(2018, 1, 1)
+    end_time = time_counter + timedelta(minutes=end_minute)
+    while time_counter < end_time:
+        time_counter += timedelta(minutes=1)
+        time.sleep(speed_factor)
+        print(time_counter)
+
+
+
 @route('/task', method = 'POST')
 def task_queue():
     try:
@@ -422,11 +427,12 @@ def task_queue():
             taskQueue.put(PrioritizedItem(int(patientTime), data))
         else:
             taskQueue.put(PrioritizedItem(int(patientTime), data))
-        #print(list(taskQueue.queue))
+
         #Queue to check how many patients are in surgery or nursing queue
         if taskRole == "surgery" or taskRole == "nursing":
             surgeryNursingQueue.put("Patient")
-            print("surgeryNursingQueue:" + str(surgeryNursingQueue.qsize()))
+
+        # Return the HHTP Response to respond later
         return HTTPResponse(
             json.dumps({'Ack.:': 'Response later'}),
             status=202,
@@ -443,8 +449,6 @@ def task_queue():
 def worker():
     while True:
         try:
-            time.sleep(0.5)
-            #read out patient data out of queue
             print("Queuesize: ")
             print(taskQueue.qsize())
             task = taskQueue.get()
@@ -456,9 +460,13 @@ def worker():
             appointment = task['appointment']
             taskRole = task['taskRole']
             callbackURL= task['callbackURL']
-            #patientTime = int(patientTime)
-            print("----------------------------------------------------------------------------------------------------------")
-            print(arrivalTime)
+
+            # # Check if the order is correct
+            # if patientTime < simulationTime:
+            #     patientTime = simulationTime
+            # else:
+            #     simulationTime = patientTime
+
 
             if taskRole == "patientAdmission":
                 #print("test")
@@ -625,7 +633,7 @@ def worker():
                 
                 #decide which resource
                 if "a" in patientType.lower():
-                                    #book resources
+                    #book resources
                     amount = get_resource_amount(day_array_a_nursing, int(patientTime))
                     if amount > 0:
                         update_resource_amount(3, (amount - 1), int(patientTime), int(patientTime) + int(nursingDuration))
@@ -776,6 +784,8 @@ def worker():
 
 #start Thread for the worker
 threading.Thread(target=worker, daemon=True).start()
+threading.Thread(target=timeSimulator).start()
+planner = Planner("./temp/event_log1.csv", ["diagnosis"])
 
 @route('/replanPatient', method = 'POST')#TODO Implement reasonable logic for replanning
 def replan_patient():
@@ -809,11 +819,15 @@ def replan_patient():
 
         #simply replan for the next day update appointment and arrivaltime
         appointment = True
-        #print("Time")
-        #print(time)
         arrivalTime = int(time) + get_minute_next_day(time)
-        #print("Arrivaltime:" + str(arrivalTime))
-        #prepare data
+
+        if True:# TODO wait one day
+            planned_elements = planner.plan(plannable_elements)
+            plannable_elements = []
+
+
+
+
         data = {
             "behavior": "fork_running",
             "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml",
@@ -828,7 +842,7 @@ def replan_patient():
         response.status = 500
         return {"error": str(e)}
     
-@route('/get_state', method = 'POST')#TODO Implement reasonable logic for replanning
+@route('/get_state', method = 'POST')
 def get_system_state():
     try:
         arrivalTime = request.forms.get('arrivalTime')

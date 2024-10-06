@@ -28,7 +28,7 @@ class Planner(ABC):
         #self.eventlog_reporter = EventLogReporter(eventlog_file, data_columns)
         self.planned_patients = set()
         self.current_state = dict() 
-        self.daycounter = 0
+        self.daycounter = 1
         self.planner_helper = None
         # Definiere eine Struktur für Patienteninformationen
         self.Patient = namedtuple('Patient', ['id', 'type', 'time'])
@@ -229,21 +229,21 @@ class Planner(ABC):
             else:
                 intake_infeasible += 3
             if intake_successful:
-                print(case)
                 if case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
                     surgery_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "surgery"))
                     surgery_amount = self.get_resource_amount(day_array_surgery, time_start)
                     if surgery_amount > 1:
                         day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, time_start + surgery_duration, (surgery_amount - 1))
                         time_start = math.floor(time_start + surgery_duration)
-                    if surgery_amount == 1:
-                        free_spots_available += 1
+                    elif surgery_amount == 1:
+                        free_spots_available += 5
                         day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, time_start + surgery_duration, (surgery_amount - 1))
-                    if surgery_amount == 0:
+                        time_start = math.floor(time_start + surgery_duration)
+                    elif surgery_amount == 0:
                         while self.get_resource_amount(day_array_surgery, time_start) < 1:
                             time_start = math.floor(time_start + 1)
                             #print("Waiting")
-                        free_spots_available += 1
+                        free_spots_available += 5
                         waiting_time += 1
                         amount = self.get_resource_amount(day_array_surgery, time_start)
                         day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, int(time_start) + surgery_duration, (amount - 1))
@@ -255,17 +255,19 @@ class Planner(ABC):
                     if nursing_amount > 0:
                         day_array_a_nursing = self.update_resource_amount(day_array_a_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
                         time_start = math.floor(time_start + nursing_duration)
-                    if nursing_amount == 1:
-                        free_spots_available += 1
-                    if nursing_amount == 0:
+                    elif nursing_amount == 1:
+                        day_array_a_nursing = self.update_resource_amount(day_array_a_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
+                        free_spots_available += 5
+                        time_start = math.floor(time_start + nursing_duration)
+                    elif nursing_amount == 0:
                         while self.get_resource_amount(day_array_a_nursing, time_start) < 1:
                             time_start = math.floor(time_start + 1)
                             #print("Waiting")
-                        free_spots_available += 1
+                        free_spots_available += 5
                         waiting_time += 1
                         amount = self.get_resource_amount(day_array_a_nursing, time_start)
                         day_array_a_nursing = self.update_resource_amount(day_array_a_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))
-                if case['info']['diagnosis'] == "B1" or case['info']['diagnosis'] == "B2" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
+                elif case['info']['diagnosis'] == "B1" or case['info']['diagnosis'] == "B2" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
                     nursing_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "nursing"))
                     nursing_amount = self.get_resource_amount(day_array_a_nursing, time_start)
                     #print("nursing_amount")
@@ -273,13 +275,15 @@ class Planner(ABC):
                     if nursing_amount > 0:
                         day_array_b_nursing = self.update_resource_amount(day_array_b_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
                         time_start = math.floor(time_start + nursing_duration)
-                    if nursing_amount == 1:
-                        free_spots_available += 1
-                    if nursing_amount == 0:
+                    elif nursing_amount == 1:
+                        day_array_b_nursing = self.update_resource_amount(day_array_b_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
+                        free_spots_available += 5
+                        time_start = math.floor(time_start + nursing_duration)
+                    elif nursing_amount == 0:
                         while self.get_resource_amount(day_array_b_nursing, time_start) < 1:
                             time_start = math.floor(time_start + 1)
                             #print("Waiting")
-                        free_spots_available += 1
+                        free_spots_available += 5
                         waiting_time += 1
                         amount = self.get_resource_amount(day_array_b_nursing, time_start)
                         day_array_b_nursing = self.update_resource_amount(day_array_b_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))              
@@ -330,7 +334,7 @@ class Planner(ABC):
         return neighbors
 
     # Hauptalgorithmus
-    def tabu_search(self, plannable_elements, max_iterations=5, tabu_tenure=10):
+    def tabu_search(self, plannable_elements, max_iterations=3, tabu_tenure=10):
         # Initiale Lösung
         current_schedule = self.initial_schedule(plannable_elements)
         #print("current_schedule")
@@ -366,7 +370,9 @@ class Planner(ABC):
                     best_schedule = next_schedule
                     best_cost = next_cost
                     
-                print(f"Iteration {iteration+1}: Beste Kosten = {next_cost}")
+            #print(f"Iteration {iteration+1}: Beste Kosten = {next_cost}")
+            if 'Solution' in best_schedule:
+                best_schedule = best_schedule['Solution']
         
         return best_schedule
 
