@@ -229,6 +229,7 @@ class Planner(ABC):
             else:
                 intake_infeasible += 3
             if intake_successful:
+                print(case)
                 if case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
                     surgery_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "surgery"))
                     surgery_amount = self.get_resource_amount(day_array_surgery, time_start)
@@ -326,7 +327,7 @@ class Planner(ABC):
                 pass
         if len(neighbors) < 1:
             pass
-        else:
+        else: # TODO checken ob nötig
             #print(self.time_to_global_minutes(neighbors[1]['Solution'][1]['assigned_timeslot']))
             #print(neighbors[0])
             self.evaluate_schedule(neighbors[0]["Solution"])
@@ -497,7 +498,7 @@ class Planner(ABC):
             print(case['cid'])
             print(case['assigned_timeslot'])
             #planned_elements.append((case['cid'], case['label'][0], case['assigned_timeslot']))
-            planned_elements.append((case['cid'], case['assigned_timeslot']))
+            planned_elements.append((case['cid'], case['info'], case['assigned_timeslot']))
 
             # print("best_schedule :")
             # print(best_schedule)

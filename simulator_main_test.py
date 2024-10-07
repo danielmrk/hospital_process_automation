@@ -26,6 +26,7 @@ nursingQueue = 0
 state_array = [[] for _ in range(525600)]
 
 simulationTime = 0
+dayCounter = 1
 
 
 day_array_a_nursing = [30] * 525600
@@ -277,6 +278,18 @@ def time_to_global_minutes(t):
         """
         return t.hour * 60 + t.minute + t.second / 60
 
+def minutes_to_datetime(minutes):
+    # Startdatum: 1. Januar 2018
+    start_date = datetime(year=2018, month=1, day=1)
+    
+    # Minuten in ein timedelta umwandeln
+    time_delta = timedelta(minutes=minutes)
+    
+    # Neues Datum berechnen
+    result_date = start_date + time_delta
+    
+    return result_date
+
 def set_process_status(patient_id, status):
     # Verbindung zur SQLite-Datenbank herstellen
     conn = sqlite3.connect('patients.db')
@@ -472,7 +485,11 @@ def worker():
                 #print("test")
                 #set patienttime to arrivaltime for this run
                 patientTime = int(arrivalTime)
-
+                global simulationTime
+                simulationTime = int(arrivalTime)
+                print("simulationTime")
+                print(simulationTime)
+                print(minutes_to_datetime(simulationTime))
                 #convert patienttime in correct format
                 start_date = datetime(2018, 1, 1)
     
@@ -784,58 +801,58 @@ def worker():
 
 #start Thread for the worker
 threading.Thread(target=worker, daemon=True).start()
-threading.Thread(target=timeSimulator).start()
+#threading.Thread(target=timeSimulator).start()
 planner = Planner("./temp/event_log1.csv", ["diagnosis"])
 
-@route('/replanPatient', method = 'POST')#TODO Implement reasonable logic for replanning
+@route('/replanPatient', method = 'POST')
 def replan_patient():
     try:
+        global dayCounter
+        global simulationTime
+        replanning = False
+
+        if (simulationTime/60/24) > dayCounter:
+            replanning = True
+            dayCounter = dayCounter + 1
+
+
         #read out patient information
         info = request.forms.get('info')
         cid = request.forms.get('cid')
         time = request.forms.get('time')
         resources = request.forms.get('resources')
 
-
-
-
-        #Count how often an instance is replanned
-        update_replanning_amount(cid)
+        try:
+            info = json.loads(info)           
+        except json.JSONDecodeError:
+            print("Error: 'info' ist kein gültiger JSON-String")
 
         data = dict()
         data['cid'] = cid
         data['time'] = int(time)
         data['info'] = info
         data['resources'] = resources
-        try:
-            info = json.loads(info)           
-        except json.JSONDecodeError:
-            print("Error: 'info' ist kein gültiger JSON-String")
-
-
+        
+        global plannable_elements
         plannable_elements.append(data)
-        print("plannable_elements: ")
-        print(plannable_elements)
 
         #simply replan for the next day update appointment and arrivaltime
         appointment = True
         arrivalTime = int(time) + get_minute_next_day(time)
 
-        if True:# TODO wait one day
+        if replanning:
             planned_elements = planner.plan(plannable_elements)
             plannable_elements = []
 
+            for case in planned_elements:
 
-
-
-        data = {
-            "behavior": "fork_running",
-            "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml",
-            "init": "{\"info\":\"" + str(info)+  "\",\"patientType\":\"" + str(info['diagnosis']) + "\",\"patientId\":\"" + str(cid) + "\", \"arrivalTime\":\"" + str(arrivalTime) + "\",\"appointment\":\"" + str(appointment) + "\"}"
-            }
-        
-        response = requests.post("https://cpee.org/flow/start/url/", data = data)
-        print(response.forms.get('CPEE-INSTANCE'))
+                data = {
+                    "behavior": "fork_running",
+                    "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml",
+                    "init": "{\"info\":\"" + str(info)+  "\",\"patientType\":\"" + str(info['diagnosis']) + "\",\"patientId\":\"" + str(cid) + "\", \"arrivalTime\":\"" + str(arrivalTime) + "\",\"appointment\":\"" + str(appointment) + "\"}"
+                    }
+                
+                response = requests.post("https://cpee.org/flow/start/url/", data = data)
         return {"patientType": info, "patientId": cid}
 
     except Exception as e:
