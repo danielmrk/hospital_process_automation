@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 import os
 import subprocess
 from planner import Planner
+import math
 
 taskQueue = queue.PriorityQueue()
 
@@ -26,7 +27,7 @@ nursingQueue = 0
 state_array = [[] for _ in range(525600)]
 
 simulationTime = 0
-dayCounter = 1
+dayCounter = 0
 
 
 day_array_a_nursing = [30] * 525600
@@ -811,7 +812,7 @@ def replan_patient():
         global simulationTime
         replanning = False
 
-        if (simulationTime/60/24) > dayCounter:
+        if math.floor((simulationTime/60/24)) > dayCounter:
             replanning = True
             dayCounter = dayCounter + 1
 
@@ -840,19 +841,40 @@ def replan_patient():
         appointment = True
         arrivalTime = int(time) + get_minute_next_day(time)
 
-        if replanning:
+        if True:
             planned_elements = planner.plan(plannable_elements)
             plannable_elements = []
+            print("planned_elements")
+            print(planned_elements)
 
             for case in planned_elements:
+                print("Daycounter und Test")
+                print(dayCounter)
+                print(minutes_to_datetime(float(case[2]) * 60 + dayCounter * 60 * 24))
+
+                # data = {
+                #     "behavior": "fork_running",
+                #     "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml",
+                #     "init": json.dumps("{\"info\":\"{\"diagnosis\":\"" + str(case[1]['diagnosis']) + "\"}\",\"patientType\":\"" + str(case[1]['diagnosis']) + "\",\"patientId\":\"" + str(case[0]) + "\", \"arrivalTime\":\"" + str(float(case[2]) * 60 + dayCounter * 60 * 24) + "\",\"appointment\":\"" + str(appointment) + "\"}")
+                #     }
 
                 data = {
-                    "behavior": "fork_running",
-                    "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml",
-                    "init": "{\"info\":\"" + str(info)+  "\",\"patientType\":\"" + str(info['diagnosis']) + "\",\"patientId\":\"" + str(cid) + "\", \"arrivalTime\":\"" + str(arrivalTime) + "\",\"appointment\":\"" + str(appointment) + "\"}"
-                    }
+                    'behavior': 'fork_running',
+                    'url': 'https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml',
+                    'init': json.dumps({
+                        'info': json.dumps({
+                            'diagnosis': str(case[1]['diagnosis'])
+                        }),
+                        'patientType': str(case[1]['diagnosis']),
+                        'patientId': str(case[0]),
+                        'arrivalTime': str(int(float(case[2]) * 60 + dayCounter * 60 * 24)),
+                        'appointment': 'True'
+                    })
+                }
                 
+                print(data) 
                 response = requests.post("https://cpee.org/flow/start/url/", data = data)
+                print(response)
         return {"patientType": info, "patientId": cid}
 
     except Exception as e:
