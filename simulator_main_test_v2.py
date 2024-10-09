@@ -6,7 +6,7 @@ import numpy
 import json
 from datetime import datetime
 import queue
-import time
+import time as tm
 import random
 import threading
 from datetime import datetime, timedelta
@@ -16,6 +16,7 @@ from planner import Planner
 import math
 
 taskQueue = queue.PriorityQueue()
+taskQueueReplanning = queue.PriorityQueue()
 
 #Amount of surgery in the queue
 surgeryNursingQueue = queue.Queue()
@@ -465,6 +466,10 @@ def worker():
             appointment = task['appointment']
             taskRole = task['taskRole']
             callbackURL= task['callbackURL']
+            with open('arrivaltime.txt', 'a') as file:
+                file.write(f"{arrivalTime}\n")
+            with open('patientTime.txt', 'a') as file:
+                file.write(f"{patientTime}\n")
 
             # # Check if the order is correct
             # if patientTime < simulationTime:
@@ -784,75 +789,103 @@ def worker():
             response.status = 500
             print(e)
             return {"error": str(e)}
+        
+def replanning_worker():
+    while True:
+        try:
+            tm.sleep(2)
+            task = taskQueueReplanning.get()
+            task = json.loads(task.data)
+            cid = task['cid']
+            info = task['info']
+            resources = task['resources']
+            time = task['time']
+            global dayCounter
+            global simulationTime
+            replanning = False
+
+            if math.floor((simulationTime/60/24)) > dayCounter:
+                replanning = True
+                dayCounter = dayCounter + 1
+
+
+            try:
+                info = json.loads(info)           
+            except json.JSONDecodeError:
+                print("Error: 'info' ist kein gültiger JSON-String")
+
+            data = dict()
+            data['cid'] = cid
+            data['time'] = int(time)
+            data['info'] = info
+            data['resources'] = resources
+            
+            global plannable_elements
+            global state_array
+            plannable_elements.append(data)
+
+
+            if replanning:
+                planned_elements = planner.plan(plannable_elements)
+                plannable_elements = []
+                with open('array.txt', 'w') as file:
+                    for item in state_array:
+                        file.write(f"{item}\n")  # Schreibe jedes Element in einer neuen Zeile
+
+                    print("Array wurde in 'array.txt' gespeichert.")
+
+                for case in planned_elements:
+
+                    data = {
+                        'behavior': 'fork_running',
+                        'url': 'https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml',
+                        'init': json.dumps({
+                            'info': json.dumps({
+                                'diagnosis': str(case[1]['diagnosis'])
+                            }),
+                            'patientType': str(case[1]['diagnosis']),
+                            'patientId': str(case[0]),
+                            'arrivalTime': str(int(float(case[2]) * 60 + dayCounter * 60 * 24)),
+                            'appointment': 'True'
+                        })
+                    }
+                    with open('replan.txt', 'a') as file:
+                            file.write(f"{data}\n")  # Schreibe jedes Element in einer neuen Zeile
+                    response = requests.post("https://cpee.org/flow/start/url/", data = data)
+            taskQueueReplanning.task_done()
+
+
+        except Exception as e:
+            response.status = 500
+            return {"error": str(e)}
 
 #start Thread for the worker
 threading.Thread(target=worker, daemon=True).start()
+threading.Thread(target=replanning_worker, daemon=True).start()
+
 #threading.Thread(target=timeSimulator).start()
 planner = Planner("./temp/event_log1.csv", ["diagnosis"])
 
 @route('/replanPatient', method = 'POST')
 def replan_patient():
     try:
-        global dayCounter
-        global simulationTime
-        replanning = False
-
-        if math.floor((simulationTime/60/24)) > dayCounter:
-            replanning = True
-            dayCounter = dayCounter + 1
-
-
         #read out patient information
         info = request.forms.get('info')
         cid = request.forms.get('cid')
         time = request.forms.get('time')
         resources = request.forms.get('resources')
 
-        try:
-            info = json.loads(info)           
-        except json.JSONDecodeError:
-            print("Error: 'info' ist kein gültiger JSON-String")
+        data = {"info": info,
+                "cid": cid,
+                "time": time,
+                "resources": resources}
 
-        data = dict()
-        data['cid'] = cid
-        data['time'] = int(time)
-        data['info'] = info
-        data['resources'] = resources
-        
-        global plannable_elements
-        global state_array
-        plannable_elements.append(data)
+        #add task to the queue to process it by the worker and prioritize it by patient time
+        data = json.dumps(data)
+        taskQueueReplanning.put(PrioritizedItem(int(1), data))
 
-        #simply replan for the next day update appointment and arrivaltime
-        appointment = True
-        arrivalTime = int(time) + get_minute_next_day(time)
 
-        if replanning:
-            planned_elements = planner.plan(plannable_elements)
-            plannable_elements = []
-            with open('array.txt', 'w') as file:
-                for item in state_array:
-                    file.write(f"{item}\n")  # Schreibe jedes Element in einer neuen Zeile
 
-                print("Array wurde in 'array.txt' gespeichert.")
-
-            for case in planned_elements:
-
-                data = {
-                    'behavior': 'fork_running',
-                    'url': 'https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml',
-                    'init': json.dumps({
-                        'info': json.dumps({
-                            'diagnosis': str(case[1]['diagnosis'])
-                        }),
-                        'patientType': str(case[1]['diagnosis']),
-                        'patientId': str(case[0]),
-                        'arrivalTime': str(int(float(case[2]) * 60 + dayCounter * 60 * 24)),
-                        'appointment': 'True'
-                    })
-                }
-                
-                response = requests.post("https://cpee.org/flow/start/url/", data = data)
         return {"patientType": info, "patientId": cid}
 
     except Exception as e:
