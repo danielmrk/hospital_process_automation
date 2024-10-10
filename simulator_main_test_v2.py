@@ -14,6 +14,23 @@ import os
 import subprocess
 from planner import Planner
 import math
+import logging
+
+
+datei_zum_loeschen = "hospital.log"
+if os.path.exists(datei_zum_loeschen):
+    os.remove(datei_zum_loeschen)
+    print(f"{datei_zum_loeschen} wurde gelöscht.")
+else:
+    print(f"{datei_zum_loeschen} existiert nicht.")
+
+# Konfiguriere das Logging
+logging.basicConfig(
+    filename='hospital.log',          # Log-Datei, in die Ereignisse geschrieben werden
+    filemode='a',                # 'a' für Anhängen, 'w' würde überschreiben
+    level=logging.INFO,          # Setzt das Mindest-Log-Level (z. B. INFO, DEBUG, etc.)
+    format='%(asctime)s - %(levelname)s - %(message)s'  # Log-Format
+)
 
 taskQueue = queue.PriorityQueue()
 taskQueueReplanning = queue.PriorityQueue()
@@ -21,19 +38,17 @@ taskQueueReplanning = queue.PriorityQueue()
 #Amount of surgery in the queue
 surgeryNursingQueue = queue.Queue()
 
-#Amount of nursing in the queue
-nursingQueue = 0
 
 #Array for initial state in minutes
 state_array = [[] for _ in range(525600)]
-
-simulationTime = 0
-dayCounter = 0
-
-
 day_array_a_nursing = [30] * 525600
 day_array_b_nursing = [40] * 525600
 day_array_emergency = [9] * 525600
+
+# Counter and time variable for time management
+simulationTime = 0
+dayCounter = 0
+planningFinal = False
 
 # Jahr mit Startdatum festlegen
 jahr_start = datetime(2018, 1, 1)
@@ -61,22 +76,7 @@ for i in range(jahr_minuten):
 
 print("Erfolgreich erstellt")
 
-# # Datei löschen
-# datei_zum_loeschen = "resources_calender.db"
-# if os.path.exists(datei_zum_loeschen):
-#     os.remove(datei_zum_loeschen)
-#     print(f"{datei_zum_loeschen} wurde gelöscht.")
-# else:
-#     print(f"{datei_zum_loeschen} existiert nicht.")
-
-# # Datei über die Kommandozeile ausführen
-# datei_zum_ausfuehren = "calenderDB.py"
-# try:
-#     subprocess.run(["python3", datei_zum_ausfuehren], check=True)
-#     print(f"{datei_zum_ausfuehren} wurde erfolgreich ausgeführt.")
-# except subprocess.CalledProcessError as e:
-#     print(f"Fehler beim Ausführen von {datei_zum_ausfuehren}: {e}")
-
+# Class for prioritising tasks by time
 class PrioritizedItem:
     def __init__(self, priority, data):
         self.priority = priority
@@ -87,7 +87,8 @@ class PrioritizedItem:
     
     def __repr__(self):
         return f'PrioritizedItem(priority={self.priority}, data={self.data})'
-    
+
+# inserts patients into the database    
 def insert_patient(admission_date, patient_type):
     conn = sqlite3.connect('patients.db')
     cursor = conn.cursor()
@@ -99,6 +100,8 @@ def insert_patient(admission_date, patient_type):
     conn.close()
     return cursor.lastrowid
 
+
+#updates the resource amount in the arrays for keeping track on resource management
 def update_resource_amount(dayarray, update, startTime, endTime):
     if dayarray == 1:
         day_array_intake[startTime:endTime] = [update] * int(endTime - startTime)
@@ -115,114 +118,17 @@ def update_resource_amount(dayarray, update, startTime, endTime):
 
     return dayarray
 
+# returns the resource amount
 def get_resource_amount(day_array, time):
     return day_array[time]
+
+def set_final_planning(bool):
+    global planningFinal
+    planningFinal = bool
+
+timerGlobal = threading.Timer(20, set_final_planning, args=True)
     
-def get_minute_next_day(patientTime):
-    conn = sqlite3.connect('resources_calender.db')
-    cursor = conn.cursor()
-
-    
-    # Abfrage ausführen
-    query = f'SELECT hour FROM resources WHERE globalMinute = ?'
-    cursor.execute(query, (patientTime,))
-
-    # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
-    result = cursor.fetchone()
-
-    #calculate how many minutes it will take to get to next day 10 o clock
-    minutes_next_day = (24 - result[0] + 10) * 60
-
-    # Verbindung schließen
-    conn.close()
-    # Wenn ein Ergebnis vorhanden ist, gib die minuten zurück, sonst gib None zurück
-    if result:
-        return minutes_next_day 
-    else:
-        return None
-
-def get_patient_time(patientId):
-    # Verbindung zur SQLite-Datenbank herstellen
-    conn = sqlite3.connect('patients.db')
-    cursor = conn.cursor()
-
-    # Abfrage ausführen
-    cursor.execute('''
-        SELECT totalTime FROM patients
-        WHERE patientID = ?
-    ''', (patientId,))
-
-    # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
-    result = cursor.fetchone()
-
-    # Verbindung schließen
-    conn.close()
-
-    # Wenn ein Ergebnis vorhanden ist, gib die totalTime zurück, sonst gib None zurück
-    if result:
-        return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
-    else:
-        return None
-
-
-def get_patient_replanning_amount(patientId):
-    # Verbindung zur SQLite-Datenbank herstellen
-    conn = sqlite3.connect('patients.db')
-    cursor = conn.cursor()
-
-    # Abfrage ausführen
-    cursor.execute('''
-        SELECT amountReplanning FROM patients
-        WHERE patientID = ?
-    ''', (patientId,))
-
-    # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
-    result = cursor.fetchone()
-
-    # Verbindung schließen
-    conn.close()
-
-    # Wenn ein Ergebnis vorhanden ist, gib die totalTime zurück, sonst gib None zurück
-    if result:
-        return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
-    else:
-        return None
-    
-def update_replanning_amount(patientId):
-    # Verbindung zur SQLite-Datenbank herstellen
-    conn = sqlite3.connect('patients.db')
-    cursor = conn.cursor()
-
-    # Abfrage ausführen
-    cursor.execute('''
-        SELECT amountReplanning FROM patients
-        WHERE patientID = ?
-    ''', (patientId,))
-
-    # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
-    result = cursor.fetchone()
-    if result[0] is None:
-        newAmount = 1
-    else:
-        newAmount = int(result[0]) + 1
-
-    cursor.execute('''
-        UPDATE patients
-        SET amountReplanning = ?
-        WHERE patientID = ?
-    ''', (newAmount, patientId))
-
-    conn.commit()
-    # Verbindung schließen
-    conn.close()
-
-    # Wenn ein Ergebnis vorhanden ist, gib die totalTime zurück, sonst gib None zurück
-    if result:
-        return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
-    else:
-        return None
-    
-
+# updates the total time of the patient
 def set_patient_time(patient_id, new_total_time):
     # Verbindung zur SQLite-Datenbank herstellen
     conn = sqlite3.connect('patients.db')
@@ -247,6 +153,7 @@ def set_patient_time(patient_id, new_total_time):
     # Verbindung schließen
     conn.close()
 
+# sets patients first arrivalTime
 def set_patient_arrivalTime(patient_id, new_arrival_time):
     # Verbindung zur SQLite-Datenbank herstellen
     conn = sqlite3.connect('patients.db')
@@ -270,6 +177,30 @@ def set_patient_arrivalTime(patient_id, new_arrival_time):
 
     # Verbindung schließen
     conn.close()
+
+# gets the patient arrivaltime
+def get_arrival_time(patientId):
+    # Verbindung zur SQLite-Datenbank herstellen
+    conn = sqlite3.connect('patients.db')
+    cursor = conn.cursor()
+
+    # Abfrage ausführen
+    cursor.execute('''
+        SELECT arrivalTime FROM patients
+        WHERE patientID = ?
+    ''', (patientId,))
+
+    # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
+    result = cursor.fetchone()
+
+    # Verbindung schließen
+    conn.close()
+
+    # Wenn ein Ergebnis vorhanden ist, gib die totalTime zurück, sonst gib None zurück
+    if result:
+        return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
+    else:
+        return None
 
 def time_to_global_minutes(t):
         """
@@ -455,8 +386,6 @@ def task_queue():
 def worker():
     while True:
         try:
-            print("Queuesize: ")
-            print(taskQueue.qsize())
             task = taskQueue.get()
             task = json.loads(task.data)
             patientId = task['patientId']
@@ -470,7 +399,8 @@ def worker():
                 file.write(f"{arrivalTime}\n")
             with open('patientTime.txt', 'a') as file:
                 file.write(f"{patientTime}\n")
-
+            if taskRole != "patientAdmission":
+                logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(minutes_to_datetime(int(patientTime))))
             # # Check if the order is correct
             # if patientTime < simulationTime:
             #     patientTime = simulationTime
@@ -482,9 +412,7 @@ def worker():
                 #print("test")
                 #set patienttime to arrivaltime for this run
                 patientTime = int(arrivalTime)
-                global simulationTime
                 global state_array
-                simulationTime = int(arrivalTime)
 
                 #convert patienttime in correct format
                 start_date = datetime(2018, 1, 1)
@@ -498,9 +426,12 @@ def worker():
                 #Assign PatientId if there is no and put patient into patient database
                 if not patientId:
                     patientId = insert_patient(arrivalTime, patientType)
+                    set_patient_arrivalTime(patientId, arrivalTime)
+                    global simulationTime
+                    simulationTime = int(arrivalTime)
                 else:
                     pass
-
+                logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(minutes_to_datetime(int(patientTime))))
                 #check if resources are available if patient has appointment
                 # print("Test:")
                 # print(get_resource_amount("intake", patientTime))
@@ -536,7 +467,6 @@ def worker():
                 print(f"PUT request sent to callback_url: {callbackURL}")
 
             elif taskRole == "intake":
-
                 #calculate intake duration
                 intake_duration = round(numpy.random.normal(60, 7.5))
 
@@ -630,7 +560,6 @@ def worker():
                     'content-type': 'application/json',
                     'CPEE-CALLBACK': 'true'
                 }
-
                 # Send the callback response as a JSON payload
                 requests.put(callbackURL, headers=headers, json=callback_response)
                 print(f"PUT request sent to callback_url: {callbackURL}")
@@ -671,7 +600,7 @@ def worker():
                     else:
                         while get_resource_amount(day_array_b_nursing, int(patientTime)) < 1:
                             patientTime = int(patientTime) + 1
-                            print("Waiting")
+                            logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(patientTime) + ", Waiting: True")
                             state_array[int(patientTime)].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': True})
                         amount = get_resource_amount(day_array_b_nursing, int(patientTime))
                         update_resource_amount(4, (amount - 1), int(patientTime), int(patientTime) + int(nursingDuration))
@@ -766,7 +695,6 @@ def worker():
             elif taskRole == "releasing":
                 # set patienttime to final total time in the database and set the process status to finished
                 set_patient_time(patientId, (int(patientTime) - int(arrivalTime)))
-                set_patient_arrivalTime(patientId, arrivalTime)
                 set_process_status(patientId , True)
                 callback_response = {
                     'patientType': patientType,
@@ -784,6 +712,7 @@ def worker():
                 print(f"PUT request sent to callback_url: {callbackURL}")
             else:
                 print("Ungültige Taskrole")
+            logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole + " beendet" +  ", Patienttime: " + str(minutes_to_datetime(int(patientTime))))    
             taskQueue.task_done()
         except Exception as e:
             response.status = 500
@@ -793,6 +722,8 @@ def worker():
 def replanning_worker():
     while True:
         try:
+            global dayCounter
+            global simulationTime
             tm.sleep(2)
             task = taskQueueReplanning.get()
             task = json.loads(task.data)
@@ -800,59 +731,78 @@ def replanning_worker():
             info = task['info']
             resources = task['resources']
             time = task['time']
-            global dayCounter
-            global simulationTime
-            replanning = False
+            if int(time) > (dayCounter + 1) * 24 * 60:
+                print("Planning zu früh")
+                data = {"info": info,
+                        "cid": cid,
+                        "time": time,
+                        "resources": resources}
 
-            if math.floor((simulationTime/60/24)) > dayCounter:
-                replanning = True
-                dayCounter = dayCounter + 1
+                #add task to the queue to process it by the worker and prioritize it by patient time
+                data = json.dumps(data)
+                taskQueueReplanning.put(PrioritizedItem(int(2), data))
 
+            else:
+                replanning = False
 
-            try:
-                info = json.loads(info)           
-            except json.JSONDecodeError:
-                print("Error: 'info' ist kein gültiger JSON-String")
+                print("dayCounter")
+                print(math.floor((simulationTime)))
+                print(dayCounter)
 
-            data = dict()
-            data['cid'] = cid
-            data['time'] = int(time)
-            data['info'] = info
-            data['resources'] = resources
-            
-            global plannable_elements
-            global state_array
-            plannable_elements.append(data)
+                if math.floor((simulationTime/60/24)) > dayCounter:
+                    replanning = True
+                    dayCounter = dayCounter + 1
 
 
-            if replanning:
-                planned_elements = planner.plan(plannable_elements)
-                plannable_elements = []
-                with open('array.txt', 'w') as file:
-                    for item in state_array:
-                        file.write(f"{item}\n")  # Schreibe jedes Element in einer neuen Zeile
+                try:
+                    info = json.loads(info)           
+                except json.JSONDecodeError:
+                    print("Error: 'info' ist kein gültiger JSON-String")
 
-                    print("Array wurde in 'array.txt' gespeichert.")
+                data = dict()
+                data['cid'] = cid
+                data['time'] = int(time)
+                data['info'] = info
+                data['resources'] = resources
+                logging.info("patientId: " + str(cid) + ", Replanning angefangen, Data: " + str(data))        
+                global plannable_elements
+                global state_array
+                plannable_elements.append(data)
 
-                for case in planned_elements:
+                global planningFinal
+                if replanning or planningFinal:
+                    planned_elements = planner.plan(plannable_elements)
+                    logging.info("DayCount: " + str(dayCounter) +", Planned Elements: " + str(planned_elements))
+                    plannable_elements = []
+                    with open('array.txt', 'w') as file:
+                        for item in state_array:
+                            file.write(f"{item}\n")  # Schreibe jedes Element in einer neuen Zeile
 
-                    data = {
-                        'behavior': 'fork_running',
-                        'url': 'https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml',
-                        'init': json.dumps({
-                            'info': json.dumps({
-                                'diagnosis': str(case[1]['diagnosis'])
-                            }),
-                            'patientType': str(case[1]['diagnosis']),
-                            'patientId': str(case[0]),
-                            'arrivalTime': str(int(float(case[2]) * 60 + dayCounter * 60 * 24)),
-                            'appointment': 'True'
-                        })
-                    }
-                    with open('replan.txt', 'a') as file:
-                            file.write(f"{data}\n")  # Schreibe jedes Element in einer neuen Zeile
-                    response = requests.post("https://cpee.org/flow/start/url/", data = data)
-            taskQueueReplanning.task_done()
+                        print("Array wurde in 'array.txt' gespeichert.")
+
+                    for case in planned_elements:
+                        if ((float(case[2]) * 60) - get_arrival_time(int(case[0]))) > 10080:
+                            logging.info("patientId: " + str(case[0]) + ", TaskRole: Left the Hospital after 7 days")
+                        else:
+                            data = {
+                                'behavior': 'fork_running',
+                                'url': 'https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml',
+                                'init': json.dumps({
+                                    'info': json.dumps({
+                                        'diagnosis': str(case[1]['diagnosis'])
+                                    }),
+                                    'patientType': str(case[1]['diagnosis']),
+                                    'patientId': str(case[0]),
+                                    'arrivalTime': str(int(float(case[2]) * 60 + dayCounter * 60 * 24 * 2)),
+                                    'appointment': 'True'
+                                })
+                            }
+                            with open('replan.txt', 'a') as file:
+                                    file.write(f"{data}\n")  # Schreibe jedes Element in einer neuen Zeile
+                            logging.info("patientId: " + str(case[0]) + ", patientType: " + str(case[1]['diagnosis']) + ", TaskRole: Replan" +  ", ReplanTime " + str(minutes_to_datetime(int(float(case[2]) * 60 + dayCounter * 60 * 24))))
+                            response = requests.post("https://cpee.org/flow/start/url/", data = data)
+                            planningFinal = False
+                taskQueueReplanning.task_done()
 
 
         except Exception as e:
@@ -874,6 +824,9 @@ def replan_patient():
         cid = request.forms.get('cid')
         time = request.forms.get('time')
         resources = request.forms.get('resources')
+        # timerGlobal.cancel()
+        # timerGlobal.start()
+
 
         data = {"info": info,
                 "cid": cid,
@@ -884,7 +837,7 @@ def replan_patient():
         data = json.dumps(data)
         taskQueueReplanning.put(PrioritizedItem(int(1), data))
 
-
+        logging.info("patientId: " + str(cid) +  ", TaskRole: Replanning detected" +  ", Data " + str(data))
 
         return {"patientType": info, "patientId": cid}
 
