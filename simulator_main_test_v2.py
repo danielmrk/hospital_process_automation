@@ -388,7 +388,13 @@ def task_queue():
 def worker():
     while True:
         try:
-            tm.sleep(1)
+            global day_array_intake
+            global day_array_a_nursing
+            global day_array_b_nursing
+            global day_array_emergency
+            global day_array_surgery
+
+            tm.sleep(0.5)
             task = taskQueue.get()
             task = json.loads(task.data)
             patientId = task['patientId']
@@ -779,7 +785,7 @@ def replanning_worker():
                     for case in planned_elements:
                         print("Diff Time: ")
                         print(((float(case[2]) * 60 + (dayCounter + 2) * 60 * 24) - get_arrival_time(int(case[0]))))
-                        if ((float(case[2]) * 60) - get_arrival_time(int(case[0]))) > 10080:
+                        if ((float(case[2]) * 60 + (dayCounter + 2) * 60 * 24) - get_arrival_time(int(case[0]))) > 10080:
                             logging.info("patientId: " + str(case[0]) + ", TaskRole: Left the Hospital after 7 days")
                         else:
                             data = {
