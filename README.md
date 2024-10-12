@@ -43,9 +43,9 @@ The main scripts are:
 1. simulator_main.py
 2. planner.py
 3. instanceSpawner.py
+4. database_patients.py
 
-The patientsDB Database can be established executing the database_calender.py.
-The resources_calender database can be established using the database_calender.py.
+A patientsDB Database can be established executing the database_calender.py. In this Da
 
 In patientsDB every Patient is stored with an individual ID, admissionDate, patientType, totalTime and processFinished variable.
 The resources_calender.db has a row for every minute of a year. In addition for every minute of the year there are the resources which are available depending on the day of the week and time (resources depend on day and working time).

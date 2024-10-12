@@ -9,6 +9,9 @@ import queue
 import time
 import random
 
+SIMULATED_DAYS = 3
+SIMULATED_PATIENTS_PER_DAY = 30
+
 def minutes_to_datetime(minutes):
     # Startdatum: 1. Januar 2018
     start_date = datetime(year=2018, month=1, day=1)
@@ -21,9 +24,9 @@ def minutes_to_datetime(minutes):
     
     return result_date
 
-for j in range(15):
+for j in range(SIMULATED_DAYS):
     # Generiere eine Liste mit 30 zufälligen Minuten zwischen 0 und 1439 (1440 Minuten pro Tag)
-    random_minutes = random.sample(range(1440), 10)
+    random_minutes = random.sample(range(1440), SIMULATED_PATIENTS_PER_DAY)
     
     # Sortiere die Minuten aufsteigend, damit sie wie ein Tagesablauf aussehen
     random_minutes.sort()
@@ -67,4 +70,18 @@ for j in range(15):
                     }
                 
         response = requests.post("https://cpee.org/flow/start/url/", data = data)
-        time.sleep(2)
+        time.sleep(4)
+
+minutes = [(1 + SIMULATED_DAYS * 1440 + (variable) * 1440) for variable in range(7)]
+for updated_mintutes in minutes:
+    data = {
+                "behavior": "fork_running",
+                "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml",
+                "init": "{\"patientType\":\"" + "Buffer" + "\", \"arrivalTime\":\"" + str(updated_mintutes) + "\"}"
+                }
+    print("Buffer Execution, please not interrupt")
+    response = requests.post("https://cpee.org/flow/start/url/", data = data)
+    time.sleep(20)
+print("Process Finished")
+
+
