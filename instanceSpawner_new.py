@@ -21,7 +21,7 @@ def minutes_to_datetime(minutes):
     
     return result_date
 
-for j in range(2):
+for j in range(15):
     # Generiere eine Liste mit 30 zufälligen Minuten zwischen 0 und 1439 (1440 Minuten pro Tag)
     random_minutes = random.sample(range(1440), 10)
     

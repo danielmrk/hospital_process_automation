@@ -38,6 +38,8 @@ taskQueueReplanning = queue.PriorityQueue()
 #Amount of surgery in the queue
 surgeryNursingQueue = queue.Queue()
 
+replanning = False
+
 
 #Array for initial state in minutes
 state_array = [[] for _ in range(525600)]
@@ -386,6 +388,7 @@ def task_queue():
 def worker():
     while True:
         try:
+            tm.sleep(1)
             task = taskQueue.get()
             task = json.loads(task.data)
             patientId = task['patientId']
@@ -401,11 +404,6 @@ def worker():
                 file.write(f"{patientTime}\n")
             if taskRole != "patientAdmission":
                 logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(minutes_to_datetime(int(patientTime))))
-            # # Check if the order is correct
-            # if patientTime < simulationTime:
-            #     patientTime = simulationTime
-            # else:
-            #     simulationTime = patientTime
         
 
             if taskRole == "patientAdmission":
@@ -724,13 +722,17 @@ def replanning_worker():
         try:
             global dayCounter
             global simulationTime
-            tm.sleep(2)
+            global replanning
+            tm.sleep(1)
             task = taskQueueReplanning.get()
             task = json.loads(task.data)
             cid = task['cid']
             info = task['info']
             resources = task['resources']
             time = task['time']
+            if math.floor((simulationTime/60/24)) > dayCounter:
+                    replanning = True
+                    dayCounter = dayCounter + 1
             if int(time) > (dayCounter + 1) * 24 * 60:
                 print("Planning zu früh")
                 data = {"info": info,
@@ -743,16 +745,10 @@ def replanning_worker():
                 taskQueueReplanning.put(PrioritizedItem(int(2), data))
 
             else:
-                replanning = False
 
                 print("dayCounter")
                 print(math.floor((simulationTime)))
                 print(dayCounter)
-
-                if math.floor((simulationTime/60/24)) > dayCounter:
-                    replanning = True
-                    dayCounter = dayCounter + 1
-
 
                 try:
                     info = json.loads(info)           
@@ -781,6 +777,8 @@ def replanning_worker():
                         print("Array wurde in 'array.txt' gespeichert.")
 
                     for case in planned_elements:
+                        print("Diff Time: ")
+                        print(((float(case[2]) * 60 + (dayCounter + 2) * 60 * 24) - get_arrival_time(int(case[0]))))
                         if ((float(case[2]) * 60) - get_arrival_time(int(case[0]))) > 10080:
                             logging.info("patientId: " + str(case[0]) + ", TaskRole: Left the Hospital after 7 days")
                         else:
@@ -793,7 +791,7 @@ def replanning_worker():
                                     }),
                                     'patientType': str(case[1]['diagnosis']),
                                     'patientId': str(case[0]),
-                                    'arrivalTime': str(int(float(case[2]) * 60 + dayCounter * 60 * 24 * 2)),
+                                    'arrivalTime': str(int(float(case[2]) * 60 + (dayCounter + 2) * 60 * 24)),
                                     'appointment': 'True'
                                 })
                             }
@@ -802,6 +800,7 @@ def replanning_worker():
                             logging.info("patientId: " + str(case[0]) + ", patientType: " + str(case[1]['diagnosis']) + ", TaskRole: Replan" +  ", ReplanTime " + str(minutes_to_datetime(int(float(case[2]) * 60 + dayCounter * 60 * 24))))
                             response = requests.post("https://cpee.org/flow/start/url/", data = data)
                             planningFinal = False
+                replanning = False
                 taskQueueReplanning.task_done()
 
 
