@@ -40,6 +40,10 @@ surgeryNursingQueue = queue.Queue()
 
 replanning = False
 
+er_treatment_score = 0
+sent_home_score = 0
+processed_score = 0
+
 
 #Array for initial state in minutes
 state_array = [[] for _ in range(525600)]
@@ -427,20 +431,20 @@ def worker():
                 # Rückgabe im ISO 8601-Format
                 timeISO = result_time.isoformat()
 
+                # Declare to global variable
+                global simulationTime
+
                 #Assign PatientId if there is no and put patient into patient database
                 if not patientId:
-                    patientId = insert_patient(arrivalTime, patientType)
-                    set_patient_arrivalTime(patientId, arrivalTime)
-                    global simulationTime
-                    simulationTime = int(arrivalTime)
+                    if patientType == "Buffer":
+                        simulationTime = int(arrivalTime)
+                    else:    
+                        patientId = insert_patient(arrivalTime, patientType)
+                        set_patient_arrivalTime(patientId, arrivalTime)
+                        simulationTime = int(arrivalTime)
                 else:
                     pass
                 logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(minutes_to_datetime(int(patientTime))))
-                #check if resources are available if patient has appointment
-                # print("Test:")
-                # print(get_resource_amount("intake", patientTime))
-                # print(surgeryNursingQueue.qsize())
-                # print(patientTime)
                 if appointment:           
                     if get_resource_amount(day_array_intake, int(patientTime)) > 0 and surgeryNursingQueue.qsize() < 3:
                         intake = True
@@ -831,18 +835,20 @@ def replan_patient():
         resources = request.forms.get('resources')
         # timerGlobal.cancel()
         # timerGlobal.start()
+        patientType = json.loads(info)
+        if patientType["diagnosis"] == "Buffer":
+            pass
+        else:
+            data = {"info": info,
+                    "cid": cid,
+                    "time": time,
+                    "resources": resources}
 
+            #add task to the queue to process it by the worker and prioritize it by patient time
+            data = json.dumps(data)
+            taskQueueReplanning.put(PrioritizedItem(int(1), data))
 
-        data = {"info": info,
-                "cid": cid,
-                "time": time,
-                "resources": resources}
-
-        #add task to the queue to process it by the worker and prioritize it by patient time
-        data = json.dumps(data)
-        taskQueueReplanning.put(PrioritizedItem(int(1), data))
-
-        logging.info("patientId: " + str(cid) +  ", TaskRole: Replanning detected" +  ", Data " + str(data))
+            logging.info("patientId: " + str(cid) +  ", TaskRole: Replanning detected" +  ", Data " + str(data))
 
         return {"patientType": info, "patientId": cid}
 
