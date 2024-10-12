@@ -132,6 +132,8 @@ def get_resource_amount(day_array, time):
 def set_final_planning(bool):
     global planningFinal
     planningFinal = bool
+
+timerGlobal = threading.Timer(20, set_final_planning, args=True)
     
 # updates the total time of the patient
 def set_patient_time(patient_id, new_total_time):
@@ -398,22 +400,24 @@ def worker():
             global day_array_surgery
 
             tm.sleep(0.5)
-            task = taskQueue.get()
-            task = json.loads(task.data)
-            patientId = task['patientId']
-            patientType = task['patientType']
-            arrivalTime = task['arrivalTime']
-            patientTime = task['patientTime']
-            appointment = task['appointment']
-            taskRole = task['taskRole']
-            callbackURL= task['callbackURL']
-            with open('arrivaltime.txt', 'a') as file:
-                file.write(f"{arrivalTime}\n")
-            with open('patientTime.txt', 'a') as file:
-                file.write(f"{patientTime}\n")
-            if taskRole != "patientAdmission":
-                logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(minutes_to_datetime(int(patientTime))))
-        
+            if not taskQueue.empty():
+                task = taskQueue.get()
+                task = json.loads(task.data)
+                patientId = task['patientId']
+                patientType = task['patientType']
+                arrivalTime = task['arrivalTime']
+                patientTime = task['patientTime']
+                appointment = task['appointment']
+                taskRole = task['taskRole']
+                callbackURL= task['callbackURL']
+                with open('arrivaltime.txt', 'a') as file:
+                    file.write(f"{arrivalTime}\n")
+                with open('patientTime.txt', 'a') as file:
+                    file.write(f"{patientTime}\n")
+                if taskRole != "patientAdmission":
+                    logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(minutes_to_datetime(int(patientTime))))
+            else:    
+                continue
 
             if taskRole == "patientAdmission":
                 #print("test")
@@ -433,15 +437,21 @@ def worker():
                 # Declare to global variable
                 global simulationTime
                 global er_treatment_score
+                global event
+                global dayCounter
 
                 #Assign PatientId if there is no and put patient into patient database
                 if not patientId:
                     if patientType == "Buffer":
                         simulationTime = int(arrivalTime)
+                        if math.floor((simulationTime/60/24)) > dayCounter:
+                            event.wait()
                     else:    
                         patientId = insert_patient(arrivalTime, patientType)
                         set_patient_arrivalTime(patientId, arrivalTime)
                         simulationTime = int(arrivalTime)
+                        if math.floor((simulationTime/60/24)) > dayCounter:
+                            event.wait()
                 else:
                     pass
                 logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(minutes_to_datetime(int(patientTime))))
@@ -748,93 +758,97 @@ def worker():
 def replanning_worker():
     while True:
         try:
-            tm.sleep(0.01)
+            tm.sleep(0.2)
             global dayCounter
             global simulationTime
             global replanning
-            task = taskQueueReplanning.get()
-            task = json.loads(task.data)
-            cid = task['cid']
-            info = task['info']
-            resources = task['resources']
-            time = task['time']
+            global plannable_elements
+            global state_array
+            global planningFinal
             if math.floor((simulationTime/60/24)) > dayCounter:
-                    replanning = True
-                    dayCounter = dayCounter + 1
-                    logging.info("DayCountTest2: " + str(dayCounter))
-            if int(time) > (dayCounter + 1) * 24 * 60:
-                taskQueueReplanning.task_done()
-                data = {"info": info,
-                        "cid": cid,
-                        "time": time,
-                        "resources": resources}
-                #add task to the queue to process it by the worker and prioritize it by patient time
-                data = json.dumps(data)
-                taskQueueReplanning.put(PrioritizedItem(int(2), data))
+                        replanning = True
+                        dayCounter = dayCounter + 1
+                        logging.info("DayCountTest2: " + str(dayCounter))
+            if not taskQueueReplanning.empty():
+                task = taskQueueReplanning.get()
+                task = json.loads(task.data)
+                cid = task['cid']
+                info = task['info']
+                resources = task['resources']
+                time = task['time']
+                
+                if int(time) > (dayCounter + 1) * 24 * 60:
+                    taskQueueReplanning.task_done()
+                    data = {"info": info,
+                            "cid": cid,
+                            "time": time,
+                            "resources": resources}
+                    #add task to the queue to process it by the worker and prioritize it by patient time
+                    data = json.dumps(data)
+                    taskQueueReplanning.put(PrioritizedItem(int(2), data))
 
-            else:
+                else:
 
-                print("dayCounter")
-                print(math.floor((simulationTime)))
-                print(dayCounter)
+                    print("dayCounter")
+                    print(math.floor((simulationTime)))
+                    print(dayCounter)
 
-                try:
-                    info = json.loads(info)           
-                except json.JSONDecodeError:
-                    print("Error: 'info' ist kein gültiger JSON-String")
+                    try:
+                        info = json.loads(info)           
+                    except json.JSONDecodeError:
+                        print("Error: 'info' ist kein gültiger JSON-String")
 
-                data = dict()
-                data['cid'] = cid
-                data['time'] = int(time)
-                data['info'] = info
-                data['resources'] = resources
-                logging.info("patientId: " + str(cid) + ", Replanning angefangen, Data: " + str(data))        
-                global plannable_elements
-                global state_array
-                plannable_elements.append(data)
-                logging.info("DayCountTest: " + str(dayCounter))
-                logging.info("Replanning: " + str(replanning))
-                global planningFinal
-                if replanning or planningFinal:
-                    planned_elements = planner.plan(plannable_elements)
-                    logging.info("DayCount: " + str(dayCounter) +", Planned Elements: " + str(planned_elements))
-                    logging.info(plannable_elements)
-                    plannable_elements = []
-                    with open('array.txt', 'w') as file:
-                        for item in state_array:
-                            file.write(f"{item}\n")  # Schreibe jedes Element in einer neuen Zeile
+                    data = dict()
+                    data['cid'] = cid
+                    data['time'] = int(time)
+                    data['info'] = info
+                    data['resources'] = resources
+                    plannable_elements.append(data)
+                    logging.info("patientId: " + str(cid) + ", Replanning angefangen, Data: " + str(data))
+                    taskQueueReplanning.task_done()     
 
-                        print("Array wurde in 'array.txt' gespeichert.")
 
-                    for case in planned_elements:
-                        print("Diff Time: ")
-                        print(((float(case[2]) * 60 + (dayCounter + 1) * 60 * 24) - get_arrival_time(int(case[0]))))
-                        if ((float(case[2]) * 60 + (dayCounter + 1) * 60 * 24) - get_arrival_time(int(case[0]))) > 10080:
-                            global processed_score
-                            processed_score += 1
-                            logging.info("patientId: " + str(case[0]) + ", TaskRole: Left the Hospital after 7 days")
-                            set_process_status(case[0] , 2)
-                        else:
-                            data = {
-                                'behavior': 'fork_running',
-                                'url': 'https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml',
-                                'init': json.dumps({
-                                    'info': json.dumps({
-                                        'diagnosis': str(case[1]['diagnosis'])
-                                    }),
-                                    'patientType': str(case[1]['diagnosis']),
-                                    'patientId': str(case[0]),
-                                    'arrivalTime': str(int(float(case[2]) * 60 + (dayCounter + 1) * 60 * 24)),
-                                    'appointment': 'True'
-                                })
-                            }
-                            with open('replan.txt', 'a') as file:
-                                    file.write(f"{data}\n")  # Schreibe jedes Element in einer neuen Zeile
-                            logging.info("patientId: " + str(case[0]) + ", patientType: " + str(case[1]['diagnosis']) + ", TaskRole: Replan" +  ", ReplanTime " + str(minutes_to_datetime(int(float(case[2]) * 60 + dayCounter * 60 * 24))))
-                            response = requests.post("https://cpee.org/flow/start/url/", data = data)
-                    planningFinal = False
-                    replanning = False
-                taskQueueReplanning.task_done()
+            if replanning or planningFinal:
+                planned_elements = planner.plan(plannable_elements)
+                logging.info("DayCount: " + str(dayCounter) +", Planned Elements: " + str(planned_elements))
+                logging.info(plannable_elements)
+                plannable_elements = []
+                with open('array.txt', 'w') as file:
+                    for item in state_array:
+                        file.write(f"{item}\n")  # Schreibe jedes Element in einer neuen Zeile
+
+                    print("Array wurde in 'array.txt' gespeichert.")
+
+                for case in planned_elements:
+                    print("Diff Time: ")
+                    print(((float(case[2]) * 60 + (dayCounter + 1) * 60 * 24) - get_arrival_time(int(case[0]))))
+                    if ((float(case[2]) * 60 + (dayCounter + 1) * 60 * 24) - get_arrival_time(int(case[0]))) > 10080:
+                        global processed_score
+                        processed_score += 1
+                        logging.info("patientId: " + str(case[0]) + ", TaskRole: Left the Hospital after 7 days")
+                        set_process_status(case[0] , 2)
+                    else:
+                        data = {
+                            'behavior': 'fork_running',
+                            'url': 'https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml',
+                            'init': json.dumps({
+                                'info': json.dumps({
+                                    'diagnosis': str(case[1]['diagnosis'])
+                                }),
+                                'patientType': str(case[1]['diagnosis']),
+                                'patientId': str(case[0]),
+                                'arrivalTime': str(int(float(case[2]) * 60 + (dayCounter + 1) * 60 * 24)),
+                                'appointment': 'True'
+                            })
+                        }
+                        with open('replan.txt', 'a') as file:
+                                file.write(f"{data}\n")  # Schreibe jedes Element in einer neuen Zeile
+                        logging.info("patientId: " + str(case[0]) + ", patientType: " + str(case[1]['diagnosis']) + ", TaskRole: Replan" +  ", ReplanTime " + str(minutes_to_datetime(int(float(case[2]) * 60 + dayCounter * 60 * 24))))
+                        response = requests.post("https://cpee.org/flow/start/url/", data = data)
+                planningFinal = False
+                replanning = False
+                event.set()
+
 
 
         except Exception as e:
@@ -842,8 +856,11 @@ def replanning_worker():
             return {"error": str(e)}
 
 #start Thread for the worker
-prozess2 = multiprocessing.Process(target=worker)
-prozess2 = multiprocessing.Process(target=replanning_worker)
+threading.Thread(target=replanning_worker, daemon=True).start()
+threading.Thread(target=worker, daemon=True).start()
+
+
+event = threading.Event()
 
 #threading.Thread(target=timeSimulator).start()
 planner = Planner("./temp/event_log1.csv", ["diagnosis"])
