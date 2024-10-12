@@ -17,7 +17,7 @@ import math
 import logging
 import multiprocessing
 
-
+# Remove the logging file of the previous simulation
 datei_zum_loeschen = "hospital.log"
 if os.path.exists(datei_zum_loeschen):
     os.remove(datei_zum_loeschen)
@@ -33,14 +33,19 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'  # Log-Format
 )
 
+
+# Create two queues to manage replanning and the actual tasks
 taskQueue = queue.PriorityQueue()
 taskQueueReplanning = queue.PriorityQueue()
 
 #Amount of surgery in the queue
 surgeryNursingQueue = queue.Queue()
 
+# Create a global variable for checking after each simulated day if we can replan
 replanning = False
 
+
+# Create the scores in order to evaluate if the planning was good
 er_treatment_score = 0
 sent_home_score = 0
 processed_score = 0
@@ -129,13 +134,8 @@ def update_resource_amount(dayarray, update, startTime, endTime):
 def get_resource_amount(day_array, time):
     return day_array[time]
 
-def set_final_planning(bool):
-    global planningFinal
-    planningFinal = bool
-
-timerGlobal = threading.Timer(20, set_final_planning, args=True)
     
-# updates the total time of the patient
+# updates the total time of the patient in the database
 def set_patient_time(patient_id, new_total_time):
     # Verbindung zur SQLite-Datenbank herstellen
     conn = sqlite3.connect('patients.db')
@@ -160,7 +160,7 @@ def set_patient_time(patient_id, new_total_time):
     # Verbindung schließen
     conn.close()
 
-# sets patients first arrivalTime
+# sets patients first arrivalTime to observe if the patient reaches the 7 days
 def set_patient_arrivalTime(patient_id, new_arrival_time):
     # Verbindung zur SQLite-Datenbank herstellen
     conn = sqlite3.connect('patients.db')
@@ -185,7 +185,7 @@ def set_patient_arrivalTime(patient_id, new_arrival_time):
     # Verbindung schließen
     conn.close()
 
-# gets the patient arrivaltime
+# gets the patient first arrivaltime
 def get_arrival_time(patientId):
     # Verbindung zur SQLite-Datenbank herstellen
     conn = sqlite3.connect('patients.db')
@@ -209,15 +209,11 @@ def get_arrival_time(patientId):
     else:
         return None
 
+# Wandelt ein datetime.time-Objekt in globale Minuten seit Mitternacht um.
 def time_to_global_minutes(t):
-        """
-        Wandelt ein datetime.time-Objekt in globale Minuten seit Mitternacht um.
-        
-        :param t: Ein datetime.time-Objekt
-        :return: Anzahl der Minuten seit Mitternacht
-        """
         return t.hour * 60 + t.minute + t.second / 60
 
+# Wandelt globale Minuten seit dem 01.01.2018 in ein datetime.time-Objekt
 def minutes_to_datetime(minutes):
     # Startdatum: 1. Januar 2018
     start_date = datetime(year=2018, month=1, day=1)
@@ -230,6 +226,7 @@ def minutes_to_datetime(minutes):
     
     return result_date
 
+# Set the process status (1: Finishes Successfully, 2: Left the Hospital after 7 days)
 def set_process_status(patient_id, status):
     # Verbindung zur SQLite-Datenbank herstellen
     conn = sqlite3.connect('patients.db')
@@ -254,6 +251,7 @@ def set_process_status(patient_id, status):
     # Verbindung schließen
     conn.close()
 
+# Calculates the operation time for differnt kind of operation and patientType
 def calculate_operation_time(diagnosis, operation):
     if operation == "surgery":
         if diagnosis == "A2":
@@ -292,7 +290,9 @@ def calculate_operation_time(diagnosis, operation):
     else:
         print("Incorrect Operation")
         return None
-    
+
+
+# generates complications for differnet types of patients
 def complication_generator(patientType):
     if patientType == "A1":
         probability = 0.01
@@ -321,6 +321,8 @@ def complication_generator(patientType):
         complication = False
     return complication
 
+
+# Generates the diagnosis of the emergency patient
 def ER_diagnosis_generator():
     random_number = random.random()
     print(random_number)
@@ -343,7 +345,7 @@ def ER_diagnosis_generator():
     return diagnosis
 
 
-
+# Function which puts every task call into a queue
 @route('/task', method = 'POST')
 def task_queue():
     try:
@@ -356,6 +358,7 @@ def task_queue():
         taskRole = request.forms.get('taskRole')
         callbackURL = request.headers['CPEE-CALLBACK']
 
+        # prepare data json in order to put it into the queue
         data = {"patientId": patientId,
                 "patientType": patientType,
                 "arrivalTime": arrivalTime,
@@ -393,13 +396,17 @@ def task_queue():
 def worker():
     while True:
         try:
+            # Declare the global variables
             global day_array_intake
             global day_array_a_nursing
             global day_array_b_nursing
             global day_array_emergency
             global day_array_surgery
 
+            # Time Sleep to reduce computing.
             tm.sleep(0.5)
+
+            # Check if taskqueue is not empty to process a task, else we can continue
             if not taskQueue.empty():
                 task = taskQueue.get()
                 task = json.loads(task.data)
@@ -418,12 +425,11 @@ def worker():
                     logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(minutes_to_datetime(int(patientTime))))
             else:    
                 continue
-
+            # Check which task to process
             if taskRole == "patientAdmission":
-                #print("test")
+
                 #set patienttime to arrivaltime for this run
                 patientTime = int(arrivalTime)
-                global state_array
 
                 #convert patienttime in correct format
                 start_date = datetime(2018, 1, 1)
@@ -439,22 +445,26 @@ def worker():
                 global er_treatment_score
                 global event
                 global dayCounter
+                global state_array
 
-                #Assign PatientId if there is no and put patient into patient database
+                # Assign PatientId if there is no and put patient into patient database
                 if not patientId:
-                    if patientType == "Buffer":
+                    if patientType == "Buffer": # The Buffer-Element is for the last 7 days after the actual simulation and a placeholder
                         simulationTime = int(arrivalTime)
                         if math.floor((simulationTime/60/24)) > dayCounter:
-                            event.wait()
+                            event.wait() # If we increased the daycounter we have to wait for the planning worker 
                     else:    
                         patientId = insert_patient(arrivalTime, patientType)
                         set_patient_arrivalTime(patientId, arrivalTime)
                         simulationTime = int(arrivalTime)
                         if math.floor((simulationTime/60/24)) > dayCounter:
-                            event.wait()
+                            event.wait() # If we increased the daycounter we have to wait for the planning worker 
                 else:
                     pass
+                # Log the admission task
                 logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(minutes_to_datetime(int(patientTime))))
+                
+                # If the patient has an appointment we are ready for intake
                 if appointment:           
                     if get_resource_amount(day_array_intake, int(patientTime)) > 0 and surgeryNursingQueue.qsize() < 3:
                         intake = True
@@ -462,12 +472,12 @@ def worker():
                         global sent_home_score
                         sent_home_score += 1
                         intake = False
-                elif patientType == "ER":
+                elif patientType == "ER": # ER patients are taken in automatically
                     intake = True
                 else:
                     intake = False
 
-                                # Prepare the callback response as JSON
+                # Prepare the callback response as JSON
                 callback_response = {
                     'patientType': patientType,
                     'patientId': patientId, 
@@ -492,15 +502,26 @@ def worker():
 
                 #book resources
                 amount = get_resource_amount(day_array_intake, int(patientTime))
-                if amount > 0:
+
+                if amount > 0: # If resource amount > 0 we can directly process the intake
                     update_resource_amount(1, (amount - 1), int(patientTime), int(patientTime) + int(intake_duration))
+
                     for i in range(int(patientTime), int(patientTime) + intake_duration):
+
+                        # for every minute we process the taskt we update our state array
                         state_array[i].append({'cid': patientId, 'task': 'intake', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
-                else:
+
+                else: # else we have to wait
+
                     while get_resource_amount(day_array_intake, int(patientTime)) < 1:
+                        
+                        #increase patient time during waiting
                         patientTime = int(patientTime) + 1
+
+                        # for every minute we process the taskt we update our state array
                         state_array[int(patientTime)].append({'cid': patientId, 'task': 'intake', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': True})
-                        print("Waiting")
+                    
+                    # after the patient has waited he is ready to be taken in
                     amount = get_resource_amount(day_array_intake, int(patientTime))
                     update_resource_amount(1, (amount - 1), int(patientTime), int(patientTime) + intake_duration )
                     for i in range(int(patientTime), int(patientTime) + int(intake_duration)):
@@ -552,11 +573,11 @@ def worker():
 
                 #book resources
                 amount = get_resource_amount(day_array_surgery, int(patientTime))
-                if amount > 0:
+                if amount > 0: # If resource amount > 0 we can directly process the surgery
                     update_resource_amount(2, (amount - 1), int(patientTime), int(patientTime) + int(surgeryDuration) )
                     for i in range(int(patientTime), int(patientTime) + int(surgeryDuration)):
                         state_array[i].append({'cid': patientId, 'task': 'surgery', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
-                else:
+                else: # else the patient has to wait
                     waitingtime = 0
                     while get_resource_amount(day_array_surgery, int(patientTime)) < 1:
                         patientTime = int(patientTime) + 1

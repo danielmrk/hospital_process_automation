@@ -9,8 +9,10 @@ import queue
 import time
 import random
 
-SIMULATED_DAYS = 3
-SIMULATED_PATIENTS_PER_DAY = 30
+
+# The Simulation Parameter for stting the simulation up
+SIMULATED_DAYS = 30 # Values 1 - 365
+SIMULATED_PATIENTS_PER_DAY = 10
 
 def minutes_to_datetime(minutes):
     # Startdatum: 1. Januar 2018
@@ -31,6 +33,7 @@ for j in range(SIMULATED_DAYS):
     # Sortiere die Minuten aufsteigend, damit sie wie ein Tagesablauf aussehen
     random_minutes.sort()
 
+    # Create a List with all the created minutes
     updated_minutes = [(minute + j * 1440) for minute in random_minutes]
 
     print(updated_minutes)
@@ -38,9 +41,11 @@ for j in range(SIMULATED_DAYS):
 
     for i in updated_minutes:
 
-        print("i")
+        print("Patient arrives: ")
         print(minutes_to_datetime(i))
         
+
+        # Sample a patient Type for the planning
         randomNumber = random.random()
         patientType = "A1"
 
@@ -63,6 +68,7 @@ for j in range(SIMULATED_DAYS):
         elif randomNumber < (9/9):
             patientType = "ER"
 
+        # prepare data json to post. This will create a cpee instance
         data = {
                     "behavior": "fork_running",
                     "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml",
@@ -72,8 +78,10 @@ for j in range(SIMULATED_DAYS):
         response = requests.post("https://cpee.org/flow/start/url/", data = data)
         time.sleep(4)
 
+# Buffer elements to have extra 7 days after the actual simulation
 minutes = [(1 + SIMULATED_DAYS * 1440 + (variable) * 1440) for variable in range(7)]
 for updated_mintutes in minutes:
+    # prepare data json to post. This will create a cpee instance
     data = {
                 "behavior": "fork_running",
                 "url": "https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml",
