@@ -40,10 +40,36 @@ The simulator creates also a logging file (hospital.log) to be able to see what 
 
 The main scripts are:
 
-1. simulator_main.py
-2. planner.py
-3. instanceSpawner.py
+1. instanceSpawner.py
+2. simulator_main.py
+3. planner.py
 4. database_patients.py
+
+### instanceSpawner.py
+
+The instanceSpawner.py scripts is in charge of spawning patients, which arrive at the hospital.
+At the beginne we can define how many days we want to simulate and how many patients we want to spawn per day.
+The script generates for each simulated day the specific patients with a random arrivaltime and a specific patientType according to some probability distribution.
+Then the scripts posts a request in order to spawn a new CPEE Instance.
+At the end the scripts sends 7 buffer instances to give the simulator the opportunity to simulate patients which arrive at the last day of the actual simulation, but have to be replanned.
+It is realized like this, because patients arrival time is the reference for the simulation time.
+
+### simulator_main.py
+
+The simulator is the main script of the project and interacts with the CPEE.
+It creates a server using the bottle-framework in python.
+It basically uses to queues and two worker threads to process hospital tasks and replanning tasks.
+For Replanning tasks it uses the implemented planner.py.
+
+#### Script Functionality
+
+In order to describe the script, we will go through it step by step.
+
+Line 20 -26:
+Remove the previous logging file to have a new one.
+
+Line 28-34:
+Create a Loggingfile.
 
 A patientsDB Database can be established executing the database_calender.py. In this Da
 
