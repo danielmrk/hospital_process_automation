@@ -65,50 +65,50 @@ For Replanning tasks it uses the implemented planner.py.
 
 In order to describe the script, we will go through it step by step.<br>
 
-Line 20 -26:<br>
+**Line 20 - 26:**<br>
 Remove the previous logging file to have a new one.
 
-Line 28-34:<br>
+**Line 28-34:**<br>
 Create a Loggingfile.
 
-Line 37 - 88:<br>
+**Line 37 - 88:**<br>
 Define the Taskqueues, the global variables, and the dayarray for resource management.
 The day arrays are arrays of the length of a year in minutes and contain for each resource the resources per minute of a year. For example Intake is just available during working hours on business days.
 
-Line 90 - 100:<br>
+**Line 90 - 100:**<br>
 Define a Prioritize Item for the taskqueue.
 
-insert_patient():<br>
+**insert_patient():**<br>
 Define a function which inserts a new patient into the patients.db.
 
-Line update_resource_amount():<br>
+**update_resource_amount():**<br>
 Define a Function which updates the resource amount in the day array.
 So we can keep track of each timeframe of the year and their resources.
 
-Line 132 - 210:<br>
+**Line 132 - 210:**<br>
 Set and get functions.
 
-Line 211 - 226:<br>
+**Line 211 - 226:**<br>
 Functions which map global minutes to a datetime and vise versa.
 We start at 01/01/2018.
 
-set_process_status(): <br>
+**set_process_status():** <br>
 Sets the status of a patient eather to one (successfully processed) or to two (left the hospital after 7 days).
 
-calculate_operation_time():<br>
+**calculate_operation_time():**<br>
 Functions which calculates the operation time of a task based on the patientType and probabilities.
 
-complication_generator():<br>
+**complication_generator():**<br>
 Generates a complication with a given probability.
 
-ER_diagnosis_generator():<br>
+**ER_diagnosis_generator():**<br>
 Generates the diagnosis for ER Patients.
 
-task_queue():<br>
+**task_queue():**<br>
 This Function can be routed and is an asynchronous endpoint of the CPEE.
 It puts every task, priotitized by the occured time into the queue.
 
-worker():<br>
+**worker():**<br>
 This is on of the two main worker threads in the simulation.
 This worker processes chronologically the tasks sent by the CPEE.
 The CPEE always send an taskrole, based on which this worker decides what to do.
@@ -153,49 +153,49 @@ It returns the patients whith a new assigned timeslot.
 
 #### Script Functionality
 
-Line 24 - 49:<br>
+**Line 24 - 49:**<br>
 Here The Planner instance initializes its self. variables.
 It creates dayarrays, daycounter and control variables.
 The day arrays are arrays of the length of two days in minutes and contain for each resource the resources per minute of a day. For example Intake is just available during working hours.
 
-Line 53 - 90:<br>
+**Line 53 - 90:**<br>
 Functions which calculates the operation time of a task based on the patientType and probabilities.
 
-Line 92 - 99: <br>
+**Line 92 - 99:**<br>
 Get and set the resource amount of the dayarray.
 
-random_time(): <br>
+**random_time():** <br>
 Create a Random Time between 08:00 and 17:00 for the initial schedule of the tabu search algo.
 
-initial_schedule(): <br>
+**initial_schedule():** <br>
 Create an initial schedule. This is the reference for the tabu search algorithm in terms of neighborhood and cost function.
 In this function every patient is assigned to a random time throughout the day.
 
-evaluate_schedule(): <br>
+**evaluate_schedule():** <br>
 This function is in charge of evaluation a planning and assign it to a certain cost.
 The function simulates the planning into a timeframe of two days similar to the simulator script.
 Each time a patient has to wait, no resources for ER-Patients are available or intake is not possible, the function counts up a cost.
 This cost is returned at the end, and serves for evaluating the different neighbors of the initial schedule.
 
-get_neighbors(): <br>
+**get_neighbors():** <br>
 This function searches for a given schedule the neighbors of this schedule.
 To do this, it swaps various patients.
 It returns a list with different schedule approaches.
 
-tabu_search(): <br>
+**tabu_search():** <br>
 This function implements the Tabu Search algorithm to find an optimized schedule from a set of plannable elements. It begins with an initial solution and iterates to improve it by exploring neighboring solutions. The algorithm avoids revisiting recently explored solutions by using a tabu list with a defined tenure, ensuring better exploration of the solution space. During each iteration, the best neighboring solution is selected, and if it improves the overall cost, it updates the current best schedule. After the specified number of iterations, the best-found schedule is returned
 
-stunden_in_wochentag(): <br>
+**stunden_in_wochentag():** <br>
 This function converts the number of hours passed since January 1, 2018, into the corresponding day of the week. It calculates the target date and returns the weekday as a string (e.g., "Monday" or "Tuesday")
 
 
-next_business_day(): <br>
+**next_business_day():** <br>
 This function returns the next business day. For example, for friday, it will return monday.
 
-Line 348 - 364: <br>
+**Line 348 - 364:** <br>
 Functions which map datetime.time to a minutes and hours.
 
-plan(): <br>
+**plan():** <br>
 The plan function is called by the simulator_main.py.
 It uses the tabu_search function to convert the plannable elements to planned elements and return them.
 
