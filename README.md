@@ -7,7 +7,7 @@ It uses an Tabu-Search algorithm for optimizing the planning of the patients.
 
 ## Usage
 
-1. Start the simulator_test.py at the Lehre Server
+1. Start the simulator_main.py at the Lehre Server
 3. In the instanceSpawner.py we can define the simulation time(up to one year) and the amount of patients.
 2. Spawn Instances using the instanceSpawner.py
 
@@ -187,7 +187,6 @@ This function implements the Tabu Search algorithm to find an optimized schedule
 
 **stunden_in_wochentag():** <br>
 This function converts the number of hours passed since January 1, 2018, into the corresponding day of the week. It calculates the target date and returns the weekday as a string (e.g., "Monday" or "Tuesday")
-
 
 **next_business_day():** <br>
 This function returns the next business day. For example, for friday, it will return monday.
