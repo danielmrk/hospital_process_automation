@@ -3,9 +3,6 @@ import random
 from collections import deque, namedtuple
 import os
 import subprocess
-# from simulator import Simulator, EventType
-# from problems import HealthcareProblem
-# from reporter import EventLogReporter
 import math
 import datetime
 import copy
@@ -24,12 +21,12 @@ class Planner(ABC):
     To avoid infinite loops of planning the same event multiple times, the planner_helper.is_planned can be used to check if an event is already planned.
     """
 
-    def __init__(self, eventlog_file, data_columns):
-        #self.eventlog_reporter = EventLogReporter(eventlog_file, data_columns)
+    def __init__(self, eventlog_file, data_columns): # init the planning algo
         self.planned_patients = set()
         self.current_state = dict() 
         self.daycounter = 1
         self.planner_helper = None
+
         # Definiere eine Struktur für Patienteninformationen
         self.Patient = namedtuple('Patient', ['id', 'type', 'time'])
 
@@ -37,7 +34,7 @@ class Planner(ABC):
         self.max_resources = 5
         
 
-                # Anzahl der Minuten pro Tag
+        # Anzahl der Minuten pro Tag
         minutes_per_2days = 2880
 
         # Start- und Endminute für die Ressource (08:00 - 17:30)
@@ -57,7 +54,7 @@ class Planner(ABC):
         self.planner_helper = planner_helper
 
 
-    def calculate_operation_time(self, diagnosis, operation):
+    def calculate_operation_time(self, diagnosis, operation): # calculate the operation time for simulating
         if operation == "surgery":
             if diagnosis == "A2":
                 return numpy.random.normal(60, 15)
@@ -96,53 +93,16 @@ class Planner(ABC):
             print("Incorrect Operation")
             return None
 
+    # update the resource amount of an array for simulating
     def update_resource_amount(self,dayarray , startTime, endTime, update):
         dayarray[startTime:endTime] = [update] * int(endTime - startTime)
         return dayarray
 
-        # conn = sqlite3.connect('planning_tabu_calender.db')
-        # cursor = conn.cursor()
-
-        # # Sicherheitscheck: Prüfe den Spaltennamen
-        # valid_columns = ['intake', 'surgery', 'a_bed', 'b_bed', 'emergency']  # Beispiel für gültige Spaltennamen
-        # if resourceName not in valid_columns:
-        #     raise ValueError("Ungültiger Spaltenname")
-        
-        # query = f'''
-        #     UPDATE resources
-        #     SET {resourceName} = ?
-        #     WHERE globalMinute >= ? AND globalMinute <= ?
-        # '''
-        # cursor.execute(query, (amount, startTime, endTime))
-        # conn.commit()
-        # conn.close()
-
+    # get the resource amount of an array for simulating
     def get_resource_amount(self, day_array, time):
         return day_array[time]
 
-        # conn = sqlite3.connect('planning_tabu_calender.db')
-        # cursor = conn.cursor()
-
-        # # Sicherheitscheck: Prüfe den Spaltennamen
-        # valid_columns = ['intake', 'surgery', 'a_bed', 'b_bed', 'emergency']  # Beispiel für gültige Spaltennamen
-        # if resource_name not in valid_columns:
-        #     raise ValueError("Ungültiger Spaltenname")
-        
-        # # Abfrage ausführen
-        # query = f'SELECT {resource_name} FROM resources WHERE globalMinute = ?'
-        # cursor.execute(query, (time,))
-
-        # # Ergebnis abrufen (es sollte nur ein Ergebnis geben)
-        # result = cursor.fetchone()
-        
-        # # Verbindung schließen
-        # conn.close()
-        # # Wenn ein Ergebnis vorhanden ist, gib die totalTime zurück, sonst gib None zurück
-        # if result:
-        #     return result[0]  # Das erste Element des Ergebnis-Tupels ist die totalTime
-        # else:
-        #     return None
-
+    # create a random time
     def random_time(self):
     # Start- und Endzeiten definieren (8:00 Uhr und 17:00 Uhr)
         start_time = datetime.datetime.strptime('08:00', '%H:%M')
@@ -163,8 +123,7 @@ class Planner(ABC):
     def initial_schedule(self, plannable_elements):
         elements = []
     
-    # Iteriere über die plannable_elements, um Informationen zu sammeln und das Dictionary zu erstellen
-        #print(plannable_elements)
+        # Iteriere über die plannable_elements, um Informationen zu sammeln und das Dictionary zu erstellen
         for element in plannable_elements:
             available_info = dict()  # Erstelle ein Dictionary
 
@@ -181,24 +140,8 @@ class Planner(ABC):
 
     # Bewertungsfunktion, z.B. Minimierung der Wartezeit
     def evaluate_schedule(self, elements_sorted):
-
-        #Create databse to evaluate solutions
-        # Datei löschen
-        # datei_zum_loeschen = "planning_tabu_calender.db"
-        # if os.path.exists(datei_zum_loeschen):
-        #     os.remove(datei_zum_loeschen)
-        #     print(f"{datei_zum_loeschen} wurde gelöscht.")
-        # else:
-        #     print(f"{datei_zum_loeschen} existiert nicht.")
-
-        # # Datei über die Kommandozeile ausführen
-        # datei_zum_ausfuehren = "database.py"
-        # try:
-        #     subprocess.run(["python3", datei_zum_ausfuehren], check=True)
-        #     print(f"{datei_zum_ausfuehren} wurde erfolgreich ausgeführt.")
-        # except subprocess.CalledProcessError as e:
-        #     print(f"Fehler beim Ausführen von {datei_zum_ausfuehren}: {e}")
-
+        
+        # create local copy of the day array
         day_array_intake = self.day_array_intake
         day_array_surgery = self.day_array_surgery
         day_array_a_nursing = self.day_array_a_nursing
@@ -213,79 +156,85 @@ class Planner(ABC):
 
         # Plan Schedule in the database and give penalty for bad planning
         for case in elements_sorted:
-            #print(case['info']['diagnosis'])
-            #print("Test" + str(case))
             time_start = case['assigned_timeslot']
             time_start = int(math.floor(self.time_to_global_minutes(time_start)))
-            #print(time_start)
+
+            # get the resources
             intake_amount = self.get_resource_amount(day_array_intake, time_start)
-            #print(intake_amount)
+
             intake_successful = False
-            if intake_amount > 0:
+            if intake_amount > 0: # check if resources for the planning are available
+
+                # update the resources and set intake to successful
                 intake_duration = intake_duration = round(numpy.random.normal(60, 7.5))
                 day_array_intake = self.update_resource_amount(day_array_intake, time_start, time_start + intake_duration, (intake_amount - 1) )
                 time_start = math.floor(time_start + intake_duration)
                 intake_successful = True
-            else:
+
+            else: # else give penalty
                 intake_infeasible += 3
-            if intake_successful:
-                print(case)
+
+            if intake_successful: # if intake successful continue with surgery (A2, A3, A4, B3, B4)
                 if case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
+                    
+                    # determine surgery duration and amount
                     surgery_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "surgery"))
                     surgery_amount = self.get_resource_amount(day_array_surgery, time_start)
-                    if surgery_amount > 1:
+
+                    if surgery_amount > 1: # if > 1 everything ok
                         day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, time_start + surgery_duration, (surgery_amount - 1))
                         time_start = math.floor(time_start + surgery_duration)
-                    elif surgery_amount == 1:
+                    elif surgery_amount == 1: # if == 1 penalty, because there are no more free spaces
                         free_spots_available += 5
                         day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, time_start + surgery_duration, (surgery_amount - 1))
                         time_start = math.floor(time_start + surgery_duration)
-                    elif surgery_amount == 0:
+                    elif surgery_amount == 0: # if == 0 waiting
                         while self.get_resource_amount(day_array_surgery, time_start) < 1:
                             time_start = math.floor(time_start + 1)
-                            #print("Waiting")
                         free_spots_available += 5
-                        waiting_time += 1
+                        waiting_time += 1 # penalty for waiting
                         amount = self.get_resource_amount(day_array_surgery, time_start)
                         day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, int(time_start) + surgery_duration, (amount - 1))
+
+                # continue with a nursing for a patients
                 if case['info']['diagnosis'] == "A1" or case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4":
+                    
+                    # determine duration and amount
                     nursing_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "nursing"))
                     nursing_amount = self.get_resource_amount(day_array_a_nursing, time_start)
-                    #print("nursing_amount")
-                    #print(nursing_amount)
-                    if nursing_amount > 0:
+                    if nursing_amount > 1: # if > 1 everything ok # TODO
                         day_array_a_nursing = self.update_resource_amount(day_array_a_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
                         time_start = math.floor(time_start + nursing_duration)
-                    elif nursing_amount == 1:
+                    elif nursing_amount == 1:  # if == 1 penalty, because there are no more free spaces
                         day_array_a_nursing = self.update_resource_amount(day_array_a_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
-                        free_spots_available += 5
+                        free_spots_available += 5 # penalty that there is no space
                         time_start = math.floor(time_start + nursing_duration)
-                    elif nursing_amount == 0:
+                    elif nursing_amount == 0: # if == 0 waiting
                         while self.get_resource_amount(day_array_a_nursing, time_start) < 1:
                             time_start = math.floor(time_start + 1)
-                            #print("Waiting")
-                        free_spots_available += 5
-                        waiting_time += 1
+                        free_spots_available += 5 # penalty that there is no space
+                        waiting_time += 1 # penalty for waiting
                         amount = self.get_resource_amount(day_array_a_nursing, time_start)
                         day_array_a_nursing = self.update_resource_amount(day_array_a_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))
+
+                # continue with b nursing for a patients
                 elif case['info']['diagnosis'] == "B1" or case['info']['diagnosis'] == "B2" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
+
+                    # determine duration and amount
                     nursing_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "nursing"))
                     nursing_amount = self.get_resource_amount(day_array_a_nursing, time_start)
-                    #print("nursing_amount")
-                    #print(nursing_amount)
-                    if nursing_amount > 0:
+                    if nursing_amount > 1: # if > 1 everything ok # TODO
                         day_array_b_nursing = self.update_resource_amount(day_array_b_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
                         time_start = math.floor(time_start + nursing_duration)
-                    elif nursing_amount == 1:
+                    elif nursing_amount == 1: # if == 1 penalty, because there are no more free spaces
                         day_array_b_nursing = self.update_resource_amount(day_array_b_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
-                        free_spots_available += 5
+                        free_spots_available += 5 # penalty that there is no space
                         time_start = math.floor(time_start + nursing_duration)
-                    elif nursing_amount == 0:
+                    elif nursing_amount == 0: # if == 0 waiting
                         while self.get_resource_amount(day_array_b_nursing, time_start) < 1:
                             time_start = math.floor(time_start + 1)
-                            #print("Waiting")
-                        free_spots_available += 5
-                        waiting_time += 1
+                        free_spots_available += 5 # penalty that there is no space
+                        waiting_time += 1 # penalty for waiting
                         amount = self.get_resource_amount(day_array_b_nursing, time_start)
                         day_array_b_nursing = self.update_resource_amount(day_array_b_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))              
 
@@ -302,15 +251,15 @@ class Planner(ABC):
         num_patients = len(schedule)
 
         counter = 0
-        #print("Anzahl planungen:")
         
         # Erzeuge Nachbarschaften durch Vertauschen der Zeitfenster zwischen zwei Patienten
         for i in range(num_patients):
             for j in range(i + 1, num_patients):
                 # Erstelle eine tiefe Kopie der ursprünglichen Planung, damit die Änderungen nicht die originale Liste beeinflussen
                 neighbor = copy.deepcopy(schedule)
-                #print(counter)
+
                 counter += 1
+
                 # Vertausche die assigned_timeslot von Patient i und Patient j
                 neighbor[i]['assigned_timeslot'], neighbor[j]['assigned_timeslot'] = neighbor[j]['assigned_timeslot'], neighbor[i]['assigned_timeslot']
                 
@@ -320,44 +269,29 @@ class Planner(ABC):
                 neighbor_dict["ID"] = counter
                 neighbor_dict["Solution"] = neighbor_sorted
                 neighbors.append(neighbor_dict)
-        for neighbor1 in neighbors:
-            #print("Neue Solution")
-            for id in neighbor1['Solution']:
-                #print(id['cid'])
-                pass
-        if len(neighbors) < 1:
-            pass
-        else: # TODO checken ob nötig
-            #print(self.time_to_global_minutes(neighbors[1]['Solution'][1]['assigned_timeslot']))
-            #print(neighbors[0])
-            self.evaluate_schedule(neighbors[0]["Solution"])
-            pass
         return neighbors
 
     # Hauptalgorithmus
     def tabu_search(self, plannable_elements, max_iterations=3, tabu_tenure=10):
         # Initiale Lösung
         current_schedule = self.initial_schedule(plannable_elements)
-        #print("current_schedule")
-        #print(current_schedule)
+
+        # define best schedule and best cost
         best_schedule = current_schedule
         best_cost = self.evaluate_schedule(current_schedule)
-        #print("Initial Schedule tested")
+
         # Tabuliste (FIFO Queue)
         tabu_list = deque(maxlen=tabu_tenure)
         
-        for iteration in range(max_iterations):
-            neighbors = self.get_neighbors(current_schedule)
-            print("neighbors")
-            if len(neighbors) > 0:
-                #print(neighbors)
-                pass
+        for iteration in range(max_iterations): # iterstions for the best solution
+
+            neighbors = self.get_neighbors(current_schedule) #get neighbors
             next_schedule = None
             next_cost = float('inf')
             
-            for neighbor in neighbors:
+            for neighbor in neighbors: # evaluate the costs of every schedule
                 cost = self.evaluate_schedule(neighbor['Solution'])
-                if neighbor not in tabu_list and cost < next_cost:
+                if neighbor not in tabu_list and cost < next_cost: # update the best costs
                     next_schedule = neighbor
                     next_cost = cost
 
@@ -433,109 +367,23 @@ class Planner(ABC):
         """
         return t.hour + t.minute / 60 + t.second / (60*60)
 
-    def report(self, case_id, element, timestamp, resource, lifecycle_state):
-        if((lifecycle_state != EventType.CASE_ARRIVAL) and (lifecycle_state != EventType.COMPLETE_CASE)):
-            
-            #######################
-            #print(f"{case_id} - {timestamp} - {element.label.value} - {resource} - {lifecycle_state}")
-            if(lifecycle_state == EventType.ACTIVATE_TASK):
-                #print(f"activating - {element.label.value}")
-                self.current_state[case_id] = {'cid': case_id, 'task': element.label.value, 'start': timestamp, 'info': simulator.planner.planner_helper.get_case_data(case_id), 'wait': True}
-            elif(lifecycle_state == EventType.START_TASK):
-                #print(f"activating - {element.label.value}")
-                self.current_state[case_id]['wait'] = False
-                self.current_state[case_id]['info'] = simulator.planner.planner_helper.get_case_data(case_id)
-            elif(lifecycle_state == EventType.COMPLETE_TASK):
-                #print(f"completing - {element.label.value}")
-                if(self.current_state[case_id]['task'] == element.label.value):
-                    self.current_state.pop(case_id)
-                else:
-                    #print('complete not compatible with activate/start')
-                    pass
-            else:
-                #print("no change in state")
-                pass
-            
-            #print(self.current_state)
-            #######################
-
-
-        self.eventlog_reporter.callback(case_id, element, timestamp, resource, lifecycle_state)
-
     def plan(self, plannable_elements):
-        #print("------------------------------------------------------------------------------------------------------------------------planning start")
-        #print(plannable_elements)
-
-        #extract hours
-        #simulation_time = plannable_elements['time'] 
-
-            #print("test")
+        # define list of planned elements
         planned_elements = []
-        planned_elements_test = []
-        #print(simulation_time)
-        #print(simulation_time)
-        # day = self.stunden_in_wochentag(simulation_time)
-        # next_plannable_time = round((simulation_time + 24) * 2 + 0.5) / 2
-        # if day == "Montag" or day == "Dienstag" or day == "Mittwoch" or day == "Donnerstag" or day == "Sonntag":
-        #     next_plannable_time = round((simulation_time + 24) * 2 + 0.5) / 2
-        # elif day == "Freitag":
-        #     next_plannable_time = round((simulation_time + 72) * 2 + 0.5) / 2
-        # elif day == "Samstag":
-        #     next_plannable_time = round((simulation_time + 72) * 2 + 0.5) / 2
-        #print(self.daycounter)
-            #print(len(plannable_elements))
-              # Startdatum: 01.01.2018, 00:00 Uhr
-        startdatum = datetime.datetime(2018, 1, 1, 0, 0)
 
+        # get the best schedule with tabu search
         best_schedule = self.tabu_search(plannable_elements)
-        # #print("best_schedule")
-        # #print(best_schedule)
+
 
         for case in best_schedule:
-            #print("Test")
-            #print(case)
+
             case['assigned_timeslot'] = (self.time_to_global_hours(case['assigned_timeslot']))
-            print(case['cid'])
-            print(case['assigned_timeslot'])
-            #planned_elements.append((case['cid'], case['label'][0], case['assigned_timeslot']))
+
             planned_elements.append((case['cid'], case['info'], case['assigned_timeslot']))
 
-            # print("best_schedule :")
-            # print(best_schedule)
-            # print("plannable elements")
-            # print(plannable_elements)
-            #print(best_schedule)
-            #schedule = self.initial_schedule(plannable_elements)
-            #self.get_neighbors(schedule)
-            #print(best_schedule[0])
-            # Datum und Uhrzeit berechnen, die den Stunden entsprechen
-        #zieldatum = startdatum + datetime.timedelta(hours=math.floor(simulation_time))
-            #print(zieldatum)
-            #print(self.stunden_in_wochentag(math.floor(simulation_time)))
-        # for case_id, element_labels in sorted(plannable_elements.items()):
-        #     print(f"{case_id} - len: {len(element_labels)}")
-
-        #     available_info = dict()
-        #     available_info['cid'] = case_id
-        #     available_info['time'] = simulation_time
-        #     available_info['info'] = simulator.planner.planner_helper.get_case_data(case_id)
-        #     available_info['resources'] = list(map(lambda el: dict({'cid': el[0]}, **el[1]), self.current_state.items()))
-            
-        #     print("Test:")
-        #     print(available_info['resources'])
-            ############### here you should send your data to your endpoint / use it with your planner functionality ############### 
-
-            # if givenumber:
-            #     #print("Elementlabel ")
-            # for element_label in element_labels:
-            #     #int(element_label)
-            #     planned_elements.append((case_id, element_label, next_plannable_time))
-        #print("------------------------------------------------------------------------------------------------------------------------planning end")
         print(planned_elements)
         return planned_elements
     
 
 planner = Planner("./temp/event_log.csv", ["diagnosis"])
-# problem = HealthcareProblem()
-# simulator = Simulator(planner, problem)
-# result = simulator.run(10*24)
+

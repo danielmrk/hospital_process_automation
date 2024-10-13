@@ -60,7 +60,6 @@ day_array_emergency = [9] * 525600
 # Counter and time variable for time management
 simulationTime = 0
 dayCounter = 0
-planningFinal = False
 
 # Jahr mit Startdatum festlegen
 jahr_start = datetime(2018, 1, 1)
@@ -571,26 +570,35 @@ def worker():
                 #calculate surgery duration
                 surgeryDuration = round(calculate_operation_time(patientType[-2:], "surgery"))
 
-                #book resources
+                # check if resources are available
                 amount = get_resource_amount(day_array_surgery, int(patientTime))
+
                 if amount > 0: # If resource amount > 0 we can directly process the surgery
+
+                    # update the resources
                     update_resource_amount(2, (amount - 1), int(patientTime), int(patientTime) + int(surgeryDuration) )
                     for i in range(int(patientTime), int(patientTime) + int(surgeryDuration)):
                         state_array[i].append({'cid': patientId, 'task': 'surgery', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
+
                 else: # else the patient has to wait
-                    waitingtime = 0
-                    while get_resource_amount(day_array_surgery, int(patientTime)) < 1:
+                    waitingtime = 0 # waitingtime in minutes is used to determine ER_Treatment score
+
+                    # log that the patient will wait
+                    logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(patientTime) + ", Waiting: True")
+
+                    while get_resource_amount(day_array_surgery, int(patientTime)) < 1: # while no resources available the patient waits
                         patientTime = int(patientTime) + 1
-                        print("Waiting")
-                        logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(patientTime) + ", Waiting: True")
-                        state_array[int(patientTime)].append({'cid': patientId, 'task': 'surgery', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': True})
-                        waitingtime +=1
-                    if patientType[:2] == "ER":
+                        state_array[int(patientTime)].append({'cid': patientId, 'task': 'surgery', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': True}) # update state array
+                        waitingtime +=1 # update waitingtime
+                    if patientType[:2] == "ER": # if ER patient is not processed directly the score is increased
                             global er_treatment_score
                             er_treatment_score += ((waitingtime/60) - 4 )**2
+
+                    # After waiting the amount is increased accordingly
                     amount = get_resource_amount(day_array_surgery,int(patientTime))
                     update_resource_amount(2, (amount - 1), int(patientTime), int(patientTime) + int(surgeryDuration) )
-                    for i in range(int(patientTime), int(patientTime) + int(surgeryDuration)):
+
+                    for i in range(int(patientTime), int(patientTime) + int(surgeryDuration)): # the state array is updated for the surgery
                         state_array[i].append({'cid': patientId, 'task': 'surgery', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
 
 
@@ -613,52 +621,72 @@ def worker():
 
             elif taskRole == "nursing":
 
-                #deque surgery nursing queue
+                # deque surgery nursing queue
                 surgeryNursingQueue.get()
                 surgeryNursingQueue.task_done()
 
-                #calculate nursing duration
+                # calculate nursing duration
                 nursingDuration = round(calculate_operation_time(patientType[-2:], "nursing"))
                 
-                #decide which resource
+                # decide which resource of the nursing we have to use
                 if "a" in patientType.lower():
-                    #book resources
+
+                    # check if resources are available
                     amount = get_resource_amount(day_array_a_nursing, int(patientTime))
-                    if amount > 0:
+
+                    if amount > 0: # if resources are available we update the resource amount and fill the state array
                         update_resource_amount(3, (amount - 1), int(patientTime), int(patientTime) + int(nursingDuration))
                         for i in range(int(patientTime), int(patientTime) + int(nursingDuration)):
                             state_array[i].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
-                    else:
-                        waitingtime = 0
-                        while get_resource_amount(day_array_a_nursing, int(patientTime)) < 1:
-                            patientTime = int(patientTime) + 1
-                            print("Waiting")
-                            logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(patientTime) + ", Waiting: True")
+                    else: # else the patient has to wait
+                        waitingtime = 0 # waiting time is used to increase the ER_Treatment score
+
+                        # log that the patient has to wait
+                        logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(patientTime) + ", Waiting: True")
+                        while get_resource_amount(day_array_a_nursing, int(patientTime)) < 1: # patient waits until resources are available
+                            patientTime = int(patientTime) + 1 # update patientType minutewise
+
+                            # update statearray and waitingtime
                             state_array[int(patientTime)].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': True})
                             waitingtime += 1
-                        if patientType[:2] == "ER":
+
+                        # ER_Treatment is just increased if there was no surgery before (A1, B1, B2)
+                        if patientType[:2] == "ER" and (patientType[-2:] == "A1" or patientType[-2:] == "B1" or patientType[-2:] == "B2"):
                             er_treatment_score += ((waitingtime/60) - 4 )**2
+
+                        # update resources and state array with the nursing process
                         amount = get_resource_amount(day_array_a_nursing, int(patientTime))
                         update_resource_amount(3, (amount - 1), int(patientTime), int(patientTime) + int(nursingDuration))
                         for i in range(int(patientTime), int(patientTime) + int(nursingDuration)):
                             state_array[i].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
+                
                 elif "b" in patientType.lower():
-                        #book resources
+
+                    # check if resources are available
                     amount = get_resource_amount(day_array_b_nursing, int(patientTime))
-                    if amount > 0:
+
+                    if amount > 0: # if resources are available we update the resource amount and fill the state array
                         update_resource_amount(4, (amount - 1), int(patientTime), int(patientTime) + int(nursingDuration))
                         for i in range(int(patientTime), int(patientTime) + int(nursingDuration)):
                             state_array[i].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
+                    # else the patient has to wait
                     else:
-                        waitingtime = 0
+                        waitingtime = 0 # waiting time is used to increase the ER_Treatment score
+
+                        # log that the patient has to wait
+                        logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(patientTime) + ", Waiting: True")
                         while get_resource_amount(day_array_b_nursing, int(patientTime)) < 1:
-                            patientTime = int(patientTime) + 1
-                            print("Waiting")
-                            logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(patientTime) + ", Waiting: True")
+                            patientTime = int(patientTime) + 1 # update patientType minutewise
+
+                            # update statearray and waitingtime
                             state_array[int(patientTime)].append({'cid': patientId, 'task': 'nursing', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': True})
                             waitingtime += 1
-                        if patientType[:2] == "ER":
+
+                        # ER_Treatment is just increased if there was no surgery before (A1, B1, B2)
+                        if patientType[:2] == "ER" and (patientType[-2:] == "A1" or patientType[-2:] == "B1" or patientType[-2:] == "B2"):
                             er_treatment_score += ((waitingtime/60) - 4 )**2
+
+                        # update resources and state array with the nursing process
                         amount = get_resource_amount(day_array_b_nursing, int(patientTime))
                         update_resource_amount(4, (amount - 1), int(patientTime), int(patientTime) + int(nursingDuration))
                         for i in range(int(patientTime), int(patientTime) + int(nursingDuration)):
@@ -691,16 +719,19 @@ def worker():
 
                 ERDuration = round(numpy.random.normal(120,30))
 
-                #book resources
+                # check if resources are available
                 amount = get_resource_amount(day_array_emergency, int(patientTime))
-                if amount > 0:
+                if amount > 0: # if resources are available the task can be processed
+                    # update the resources and state array
                     update_resource_amount(5, (amount - 1), int(patientTime), int(patientTime) + int(ERDuration))
                     for i in range(int(patientTime), int(patientTime) + ERDuration):
                         state_array[i].append({'cid': patientId, 'task': 'ERTreatment', 'start': int(patientTime)/60 , 'info': {'diagnosis': patientType}, 'wait': False})
-                else:
+                else: # else the patient has to wait
                     while get_resource_amount(day_array_emergency, int(patientTime)) < 1:
                         patientTime = int(patientTime) + 1
                         state_array[int(patientTime)].append({'cid': patientId, 'task': 'ERTreatment', 'start': patientTime/60 , 'info': {'diagnosis': patientType}, 'wait': True})
+                    
+                    # update the resources and state array
                     amount = get_resource_amount(day_array_emergency, int(patientTime))
                     update_resource_amount(5, (amount - 1), int(patientTime), int(patientTime) + int(ERDuration))
                     for i in range(int(patientTime), int(patientTime) + ERDuration):
@@ -770,7 +801,7 @@ def worker():
             else:
                 print("Ungültige Taskrole")
             logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole + " beendet" +  ", Patienttime: " + str(minutes_to_datetime(int(patientTime))))    
-            taskQueue.task_done()
+            taskQueue.task_done() # task is done and queue can move on
         except Exception as e:
             response.status = 500
             print(e)
@@ -779,17 +810,23 @@ def worker():
 def replanning_worker():
     while True:
         try:
+            # sleep to reduce computing demand
             tm.sleep(0.2)
+
+            # define global variables
             global dayCounter
             global simulationTime
             global replanning
             global plannable_elements
             global state_array
             global planningFinal
+
+            # check if the simulation is in a new day and increase daycounter
             if math.floor((simulationTime/60/24)) > dayCounter:
-                        replanning = True
-                        dayCounter = dayCounter + 1
-                        logging.info("DayCountTest2: " + str(dayCounter))
+                        replanning = True # enable replanning
+                        dayCounter = dayCounter + 1 # increase dayounter
+
+            #Check if there is a replanning task in the queue and if so take the next task
             if not taskQueueReplanning.empty():
                 task = taskQueueReplanning.get()
                 task = json.loads(task.data)
@@ -797,7 +834,9 @@ def replanning_worker():
                 info = task['info']
                 resources = task['resources']
                 time = task['time']
-                
+
+
+                # Check if the replanning task is ahead of the daycounter, if so put it back into the queue
                 if int(time) > (dayCounter + 1) * 24 * 60:
                     taskQueueReplanning.task_done()
                     data = {"info": info,
@@ -808,12 +847,9 @@ def replanning_worker():
                     data = json.dumps(data)
                     taskQueueReplanning.put(PrioritizedItem(int(2), data))
 
-                else:
+                else: # else append the task on the list for the replanner
 
-                    print("dayCounter")
-                    print(math.floor((simulationTime)))
-                    print(dayCounter)
-
+                    # load the json info
                     try:
                         info = json.loads(info)           
                     except json.JSONDecodeError:
@@ -824,31 +860,33 @@ def replanning_worker():
                     data['time'] = int(time)
                     data['info'] = info
                     data['resources'] = resources
-                    plannable_elements.append(data)
+                    plannable_elements.append(data) # append to the list
                     logging.info("patientId: " + str(cid) + ", Replanning angefangen, Data: " + str(data))
                     taskQueueReplanning.task_done()     
 
-
-            if replanning or planningFinal:
-                planned_elements = planner.plan(plannable_elements)
+            # If there is a new day we replan all patients in the list, we use therefore our tabu-search planning algo
+            if replanning:
+                planned_elements = planner.plan(plannable_elements) # Tabu search planning algo
                 logging.info("DayCount: " + str(dayCounter) +", Planned Elements: " + str(planned_elements))
                 logging.info(plannable_elements)
-                plannable_elements = []
+                plannable_elements = [] # put the list to empty again
+
+                # write the state array in a file for tracking
                 with open('array.txt', 'w') as file:
                     for item in state_array:
                         file.write(f"{item}\n")  # Schreibe jedes Element in einer neuen Zeile
 
-                    print("Array wurde in 'array.txt' gespeichert.")
+                for case in planned_elements: # replan every case i the planned elements
 
-                for case in planned_elements:
-                    print("Diff Time: ")
-                    print(((float(case[2]) * 60 + (dayCounter + 1) * 60 * 24) - get_arrival_time(int(case[0]))))
+                    # if patients first arrival is back more than 7 days he leaves the hospital
                     if ((float(case[2]) * 60 + (dayCounter + 1) * 60 * 24) - get_arrival_time(int(case[0]))) > 10080:
                         global processed_score
-                        processed_score += 1
+                        processed_score += 1 # increase processed score
                         logging.info("patientId: " + str(case[0]) + ", TaskRole: Left the Hospital after 7 days")
-                        set_process_status(case[0] , 2)
-                    else:
+                        set_process_status(case[0] , 2) # set the process status
+                    else: # else we spawn a new instance
+
+                        # prepare the data
                         data = {
                             'behavior': 'fork_running',
                             'url': 'https://cpee.org/hub/server/Teaching.dir/Prak.dir/Challengers.dir/Daniel_Meierkord.dir/main_meierkord.xml',
@@ -864,11 +902,12 @@ def replanning_worker():
                         }
                         with open('replan.txt', 'a') as file:
                                 file.write(f"{data}\n")  # Schreibe jedes Element in einer neuen Zeile
+
+                        # log the replanning and post the request
                         logging.info("patientId: " + str(case[0]) + ", patientType: " + str(case[1]['diagnosis']) + ", TaskRole: Replan" +  ", ReplanTime " + str(minutes_to_datetime(int(float(case[2]) * 60 + dayCounter * 60 * 24))))
                         response = requests.post("https://cpee.org/flow/start/url/", data = data)
-                planningFinal = False
-                replanning = False
-                event.set()
+                replanning = False # set replanning to false again
+                event.set() # set event and give the signal to task worker to continue
 
 
 
@@ -880,7 +919,7 @@ def replanning_worker():
 threading.Thread(target=replanning_worker, daemon=True).start()
 threading.Thread(target=worker, daemon=True).start()
 
-
+# set a threading event for synchronisation
 event = threading.Event()
 
 #threading.Thread(target=timeSimulator).start()
@@ -894,9 +933,9 @@ def replan_patient():
         cid = request.forms.get('cid')
         time = request.forms.get('time')
         resources = request.forms.get('resources')
-        # timerGlobal.cancel()
-        # timerGlobal.start()
         patientType = json.loads(info)
+
+        # if there is a buffer patient we print the score
         if patientType["diagnosis"] == "Buffer":
             global sent_home_score
             global er_treatment_score
@@ -904,7 +943,7 @@ def replan_patient():
             print("sent_home_score: " + str(sent_home_score))
             print("er_treatment_score: " + str(er_treatment_score))
             print("processed_score: " + str(processed_score))
-        else:
+        else: # else we put the patient into the replanning queue
             data = {"info": info,
                     "cid": cid,
                     "time": time,
