@@ -71,6 +71,79 @@ Remove the previous logging file to have a new one.
 Line 28-34:
 Create a Loggingfile.
 
+Line 37 - 88:
+Define the Taskqueues, the global variables, and the dayarray for resource management.
+The day arrays are arrays of the length of a year in minutes and contain for each resource the resources per minute od a year. For example Intake is just available during working hours on business days.
+
+Line 90 - 100:
+Define a Prioritize Item for the taskqueue.
+
+Line 102 - 112:
+Define a function which inserts a new patient into the patients.db.
+
+Line 116 - 130:
+Define a Function which updates the resource amount in the day array.
+So we can keep track of each timeframe of the year and their resources.
+
+Line 132 - 210:
+Set and get functions.
+
+Line 211 - 226:
+Functions which map global minutes to a datetime and vise versa.
+We start at 01/01/2018.
+
+Line 254 - 291:
+Functions which calculates the operation time of a task based on the patientType and probabilities.
+
+Line 295 - 321:
+Generates a complication with a given probability.
+
+Line 324 - 344:
+Generates the diagnosis for ER Patients.
+
+Line 347 - 392:
+This Function can be routed and is an asynchronous endpoint of the CPEE.
+It puts every task, priotitized by the occured time into the queue.
+
+Line 395 - 808:
+This is on of the two main worker threads in the simulation.
+This worker processes chronologically the tasks sent by the CPEE.
+The CPEE always send an taskrole, based on which this worker decides what to do.
+
+In patientAdmission the worker decides if an patient is ready for intake.
+Therefore the resources and the appointment of the patient is relevant.
+ER Patients are always processed directly.
+If the patient shows up the first time he gets an ID and is added to the database.
+
+If the patient is now further processed in intake, surgery and nursing, the worker always simulates the time it takes, checks if the patient hast to wait, and updates the required resources in the arrays.
+In some stations the worker also simulates if an patient has compliations or needs further treatment.
+Also penalty is handled by the worker.
+The penalty is used for the Scores to evaluate the planning algo.
+If a task is processed the worker send an answer to the stored reply URL of the CPEE.
+The logging function is used for monitoring the processed tasks.
+If a patient is released, the worker sets the process_status in the patientDatabase to one to indicate that the patient was succesfully processed.
+If the patient leaves the hospital the status is two.
+
+Line 810 - 916
+This is the second worker thread which processes the petients which have to be replanned.
+It takes the patients out of the taskQueueReplanning and appends them to a list.
+After each day the list of patients which have to be replanned are processed by the planner.py script and are assigned to a new timeslot on the next day.
+If this happens the worker spawns the new instances.
+
+Line 918 - 926:
+The Threads are started and a planner instance is created.
+
+Line 928 - 962:
+This Function can be routed and is an asynchronous endpoint of the CPEE.
+It puts every replanning task into the taskQueueReplanning.
+
+Line 964 - 973:
+This Function can be routed and is an asynchronous endpoint of the CPEE.
+If the system state is requested by the CPEE this function returns the systemstate of a given minute.
+
+
+If the patient shows up the first time he gets an ID and is added to the database.
+
 A patientsDB Database can be established executing the database_calender.py. In this Da
 
 In patientsDB every Patient is stored with an individual ID, admissionDate, patientType, totalTime and processFinished variable.
