@@ -63,49 +63,49 @@ For Replanning tasks it uses the implemented planner.py.
 
 #### Script Functionality
 
-In order to describe the script, we will go through it step by step.
+In order to describe the script, we will go through it step by step.<br>
 
-Line 20 -26:
+Line 20 -26:<br>
 Remove the previous logging file to have a new one.
 
-Line 28-34:
+Line 28-34:<br>
 Create a Loggingfile.
 
-Line 37 - 88:
+Line 37 - 88:<br>
 Define the Taskqueues, the global variables, and the dayarray for resource management.
 The day arrays are arrays of the length of a year in minutes and contain for each resource the resources per minute od a year. For example Intake is just available during working hours on business days.
 
-Line 90 - 100:
+Line 90 - 100:<br>
 Define a Prioritize Item for the taskqueue.
 
-Line 102 - 112:
+Line 102 - 112:<br>
 Define a function which inserts a new patient into the patients.db.
 
-Line 116 - 130:
+Line 116 - 130:<br>
 Define a Function which updates the resource amount in the day array.
 So we can keep track of each timeframe of the year and their resources.
 
-Line 132 - 210:
+Line 132 - 210:<br>
 Set and get functions.
 
-Line 211 - 226:
+Line 211 - 226:<br>
 Functions which map global minutes to a datetime and vise versa.
 We start at 01/01/2018.
 
-Line 254 - 291:
+Line 254 - 291:<br>
 Functions which calculates the operation time of a task based on the patientType and probabilities.
 
-Line 295 - 321:
+Line 295 - 321:<br>
 Generates a complication with a given probability.
 
-Line 324 - 344:
+Line 324 - 344:<br>
 Generates the diagnosis for ER Patients.
 
-Line 347 - 392:
+Line 347 - 392:<br>
 This Function can be routed and is an asynchronous endpoint of the CPEE.
 It puts every task, priotitized by the occured time into the queue.
 
-Line 395 - 808:
+Line 395 - 808:<br>
 This is on of the two main worker threads in the simulation.
 This worker processes chronologically the tasks sent by the CPEE.
 The CPEE always send an taskrole, based on which this worker decides what to do.
@@ -124,36 +124,32 @@ The logging function is used for monitoring the processed tasks.
 If a patient is released, the worker sets the process_status in the patientDatabase to one to indicate that the patient was succesfully processed.
 If the patient leaves the hospital the status is two.
 
-Line 810 - 916
+Line 810 - 916<br>
 This is the second worker thread which processes the petients which have to be replanned.
 It takes the patients out of the taskQueueReplanning and appends them to a list.
 After each day the list of patients which have to be replanned are processed by the planner.py script and are assigned to a new timeslot on the next day.
 If this happens the worker spawns the new instances.
 
-Line 918 - 926:
+Line 918 - 926:<br>
 The Threads are started and a planner instance is created.
 
-Line 928 - 962:
+Line 928 - 962:<br>
 This Function can be routed and is an asynchronous endpoint of the CPEE.
 It puts every replanning task into the taskQueueReplanning.
 
-Line 964 - 973:
+Line 964 - 973:<br>
 This Function can be routed and is an asynchronous endpoint of the CPEE.
 If the system state is requested by the CPEE this function returns the systemstate of a given minute.
 
+### planner.py
 
-If the patient shows up the first time he gets an ID and is added to the database.
+The planner is in charge for replanning the patients.
+For optimizing the scores it uses the tabu-search algorithm
+Input is the list of patients which have to be replanned.
+It returns the patients whith a new assigned timeslot.
 
-A patientsDB Database can be established executing the database_calender.py. In this Da
+#### Script Functionality
 
-In patientsDB every Patient is stored with an individual ID, admissionDate, patientType, totalTime and processFinished variable.
-The resources_calender.db has a row for every minute of a year. In addition for every minute of the year there are the resources which are available depending on the day of the week and time (resources depend on day and working time).
-The Script is now able to book resources and evaluate if there are resources available.
-
-Every task besides replanning is handled by a endpoint which eather puts the task in a priorityQueue or answers in case of patientAdmission or releasing immediately.
-The rest of the tasks is handled via an asynchronous call.
-Replanning is in the moment always for 10 AM at the next day implemented.
-This queue is then handled by a worker thread. This worker handles them sorted by the time they start.
-If no resources are available the patient has to wait.
-There is no real time, the time is just a variable of the patient.
+Line 24 - 49:<br>
+Test
 
