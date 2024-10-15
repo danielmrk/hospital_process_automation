@@ -51,7 +51,7 @@ class Planner(ABC):
 
     def set_planner_helper(self, planner_helper):
         self.planner_helper = planner_helper
-        
+
     def calculate_operation_time(self, diagnosis, operation): # calculate the operation time for simulating
         if operation == "surgery":
             if diagnosis == "A2":
@@ -120,7 +120,11 @@ class Planner(ABC):
     # Erstelle eine initiale Planung
     def initial_schedule(self, plannable_elements):
         elements = []
-    
+        
+        # Check if there are elements
+        if len(plannable_elements) == 0:
+            elements_sorted = []
+
         # Iteriere über die plannable_elements, um Informationen zu sammeln und das Dictionary zu erstellen
         for element in plannable_elements:
             available_info = dict()  # Erstelle ein Dictionary
@@ -367,20 +371,24 @@ class Planner(ABC):
 
     def plan(self, plannable_elements):
         # define list of planned elements
-        planned_elements = []
+        try:
+            planned_elements = []
 
-        # get the best schedule with tabu search
-        best_schedule = self.tabu_search(plannable_elements)
+            # get the best schedule with tabu search
+            best_schedule = self.tabu_search(plannable_elements)
 
 
-        for case in best_schedule:
+            for case in best_schedule:
 
-            case['assigned_timeslot'] = (self.time_to_global_hours(case['assigned_timeslot']))
+                case['assigned_timeslot'] = (self.time_to_global_hours(case['assigned_timeslot']))
 
-            planned_elements.append((case['cid'], case['info'], case['assigned_timeslot']))
+                planned_elements.append((case['cid'], case['info'], case['assigned_timeslot']))
 
-        print(planned_elements)
-        return planned_elements
+            print(planned_elements)
+            return planned_elements
+        except Exception as e:
+            print(e)
+            return {"error": str(e)}
     
 
 planner = Planner("./temp/event_log.csv", ["diagnosis"])
