@@ -416,16 +416,20 @@ def worker():
                 appointment = task['appointment']
                 taskRole = task['taskRole']
                 callbackURL= task['callbackURL']
-                with open('arrivaltime.txt', 'a') as file:
-                    file.write(f"{arrivalTime}\n")
-                with open('patientTime.txt', 'a') as file:
-                    file.write(f"{patientTime}\n")
                 if taskRole != "patientAdmission":
                     logging.info("patientId: " + str(patientId) + ", patientType: " + str(patientType) + ", TaskRole: " + taskRole +  ", Patienttime: " + str(minutes_to_datetime(int(patientTime))))
             else:    
                 continue
             # Check which task to process
             if taskRole == "patientAdmission":
+
+                # Declare to global variable
+                global simulationTime
+                global er_treatment_score
+                global event
+                global dayCounter
+                global state_array
+                global replanning
 
                 #set patienttime to arrivaltime for this run
                 patientTime = int(arrivalTime)
@@ -439,13 +443,6 @@ def worker():
                 # Rückgabe im ISO 8601-Format
                 timeISO = result_time.isoformat()
 
-                # Declare to global variable
-                global simulationTime
-                global er_treatment_score
-                global event
-                global dayCounter
-                global state_array
-
                 # Assign PatientId if there is no and put patient into patient database
                 if not patientId:
                     if patientType == "Buffer": # The Buffer-Element is for the last 7 days after the actual simulation and a placeholder
@@ -453,7 +450,10 @@ def worker():
                         logging.error(simulationTime)
                         logging.error(dayCounter)
                         if math.floor((simulationTime/60/24)) > dayCounter:
+                            dayCounter = dayCounter + 1 # increase daycounter
+                            replanning = True # set replanning to true for 
                             event.wait() # If we increased the daycounter we have to wait for the planning worker 
+                            event.clear() # Clear the event
                     else:    
                         patientId = insert_patient(arrivalTime, patientType)
                         set_patient_arrivalTime(patientId, arrivalTime)
@@ -461,7 +461,10 @@ def worker():
                         logging.error(simulationTime)
                         logging.error(dayCounter)
                         if math.floor((simulationTime/60/24)) > dayCounter:
-                            event.wait() # If we increased the daycounter we have to wait for the planning worker 
+                            dayCounter = dayCounter + 1 # increase daycounter
+                            replanning = True
+                            event.wait() # If we increased the daycounter we have to wait for the planning worker
+                            event.clear() # Clear the event
                 else:
                     pass
                 # Log the admission task
@@ -825,12 +828,6 @@ def replanning_worker():
             global state_array
             global planningFinal
 
-            # check if the simulation is in a new day and increase daycounter
-            if math.floor((simulationTime/60/24)) > dayCounter:
-                replanning = True # enable replanning
-                logging.error(replanning)
-                dayCounter = dayCounter + 1 # increase dayounter
-
             #Check if there is a replanning task in the queue and if so take the next task
             if not taskQueueReplanning.empty():
                 task = taskQueueReplanning.get()
@@ -909,7 +906,7 @@ def replanning_worker():
                                 file.write(f"{data}\n")  # Schreibe jedes Element in einer neuen Zeile
 
                         # log the replanning and post the request
-                        logging.info("patientId: " + str(case[0]) + ", patientType: " + str(case[1]['diagnosis']) + ", TaskRole: Replan" +  ", ReplanTime " + str(minutes_to_datetime(int(float(case[2]) * 60 + dayCounter * 60 * 24))))
+                        logging.info("patientId: " + str(case[0]) + ", patientType: " + str(case[1]['diagnosis']) + ", TaskRole: Replan" +  ", ReplanTime " + str(minutes_to_datetime(int(float(case[2]) * 60 + (dayCounter + 1) * 60 * 24))))
                         response = requests.post("https://cpee.org/flow/start/url/", data = data)
                 replanning = False # set replanning to false again
                 event.set() # set event and give the signal to task worker to continue

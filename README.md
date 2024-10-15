@@ -134,7 +134,7 @@ It takes the patients out of the taskQueueReplanning and appends them to a list.
 After each day the list of patients which have to be replanned are processed by the planner.py script and are assigned to a new timeslot on the next day.
 If this happens the worker spawns the new instances.
 
-Line 918 - 926:<br>
+Line 920 - 928:<br>
 The Threads are started and a planner instance is created.
 
 replan_patient():<br>

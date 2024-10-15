@@ -76,7 +76,7 @@ for j in range(SIMULATED_DAYS):
                     }
                 
         response = requests.post("https://cpee.org/flow/start/url/", data = data)
-        time.sleep(4)
+        time.sleep(0.2)
 
 # Buffer elements to have extra 7 days after the actual simulation
 minutes = [(1 + SIMULATED_DAYS * 1440 + (variable) * 1440) for variable in range(7)]
