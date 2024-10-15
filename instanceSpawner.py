@@ -11,7 +11,7 @@ import random
 
 
 # The Simulation Parameter for stting the simulation up
-SIMULATED_DAYS = 15 # Values 1 - 365
+SIMULATED_DAYS = 10 # Values 1 - 365
 SIMULATED_PATIENTS_PER_DAY = 10
 
 def minutes_to_datetime(minutes):

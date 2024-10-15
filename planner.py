@@ -49,7 +49,9 @@ class Planner(ABC):
         self.day_array_b_nursing = [40] * 2880
         
 
-
+    def set_planner_helper(self, planner_helper):
+        self.planner_helper = planner_helper
+        
     def calculate_operation_time(self, diagnosis, operation): # calculate the operation time for simulating
         if operation == "surgery":
             if diagnosis == "A2":

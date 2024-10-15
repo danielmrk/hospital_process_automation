@@ -450,12 +450,16 @@ def worker():
                 if not patientId:
                     if patientType == "Buffer": # The Buffer-Element is for the last 7 days after the actual simulation and a placeholder
                         simulationTime = int(arrivalTime)
+                        logging.error(simulationTime)
+                        logging.error(dayCounter)
                         if math.floor((simulationTime/60/24)) > dayCounter:
                             event.wait() # If we increased the daycounter we have to wait for the planning worker 
                     else:    
                         patientId = insert_patient(arrivalTime, patientType)
                         set_patient_arrivalTime(patientId, arrivalTime)
                         simulationTime = int(arrivalTime)
+                        logging.error(simulationTime)
+                        logging.error(dayCounter)
                         if math.floor((simulationTime/60/24)) > dayCounter:
                             event.wait() # If we increased the daycounter we have to wait for the planning worker 
                 else:
@@ -823,8 +827,9 @@ def replanning_worker():
 
             # check if the simulation is in a new day and increase daycounter
             if math.floor((simulationTime/60/24)) > dayCounter:
-                        replanning = True # enable replanning
-                        dayCounter = dayCounter + 1 # increase dayounter
+                replanning = True # enable replanning
+                logging.error(replanning)
+                dayCounter = dayCounter + 1 # increase dayounter
 
             #Check if there is a replanning task in the queue and if so take the next task
             if not taskQueueReplanning.empty():
