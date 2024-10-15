@@ -120,7 +120,7 @@ class Planner(ABC):
     # Erstelle eine initiale Planung
     def initial_schedule(self, plannable_elements):
         elements = []
-        
+
         # Check if there are elements
         if len(plannable_elements) == 0:
             elements_sorted = []
@@ -142,108 +142,110 @@ class Planner(ABC):
 
     # Bewertungsfunktion, z.B. Minimierung der Wartezeit
     def evaluate_schedule(self, elements_sorted):
-        
-        # create local copy of the day array
-        day_array_intake = self.day_array_intake
-        day_array_surgery = self.day_array_surgery
-        day_array_a_nursing = self.day_array_a_nursing
-        day_array_b_nursing = self.day_array_b_nursing
+        try:
+            # create local copy of the day array
+            day_array_intake = self.day_array_intake
+            day_array_surgery = self.day_array_surgery
+            day_array_a_nursing = self.day_array_a_nursing
+            day_array_b_nursing = self.day_array_b_nursing
 
 
 
-        #Define Performance Indicators
-        intake_infeasible = 0
-        waiting_time = 0
-        free_spots_available = 0
+            #Define Performance Indicators
+            intake_infeasible = 0
+            waiting_time = 0
+            free_spots_available = 0
 
-        # Plan Schedule in the database and give penalty for bad planning
-        for case in elements_sorted:
-            time_start = case['assigned_timeslot']
-            time_start = int(math.floor(self.time_to_global_minutes(time_start)))
+            # Plan Schedule in the database and give penalty for bad planning
+            for case in elements_sorted:
+                time_start = case['assigned_timeslot']
+                time_start = int(math.floor(self.time_to_global_minutes(time_start)))
 
-            # get the resources
-            intake_amount = self.get_resource_amount(day_array_intake, time_start)
+                # get the resources
+                intake_amount = self.get_resource_amount(day_array_intake, time_start)
 
-            intake_successful = False
-            if intake_amount > 0: # check if resources for the planning are available
+                intake_successful = False
+                if intake_amount > 0: # check if resources for the planning are available
 
-                # update the resources and set intake to successful
-                intake_duration = intake_duration = round(numpy.random.normal(60, 7.5))
-                day_array_intake = self.update_resource_amount(day_array_intake, time_start, time_start + intake_duration, (intake_amount - 1) )
-                time_start = math.floor(time_start + intake_duration)
-                intake_successful = True
+                    # update the resources and set intake to successful
+                    intake_duration = intake_duration = round(numpy.random.normal(60, 7.5))
+                    day_array_intake = self.update_resource_amount(day_array_intake, time_start, time_start + intake_duration, (intake_amount - 1) )
+                    time_start = math.floor(time_start + intake_duration)
+                    intake_successful = True
 
-            else: # else give penalty
-                intake_infeasible += 3
+                else: # else give penalty
+                    intake_infeasible += 3
 
-            if intake_successful: # if intake successful continue with surgery (A2, A3, A4, B3, B4)
-                if case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
-                    
-                    # determine surgery duration and amount
-                    surgery_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "surgery"))
-                    surgery_amount = self.get_resource_amount(day_array_surgery, time_start)
+                if intake_successful: # if intake successful continue with surgery (A2, A3, A4, B3, B4)
+                    if case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
+                        
+                        # determine surgery duration and amount
+                        surgery_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "surgery"))
+                        surgery_amount = self.get_resource_amount(day_array_surgery, time_start)
 
-                    if surgery_amount > 1: # if > 1 everything ok
-                        day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, time_start + surgery_duration, (surgery_amount - 1))
-                        time_start = math.floor(time_start + surgery_duration)
-                    elif surgery_amount == 1: # if == 1 penalty, because there are no more free spaces
-                        free_spots_available += 5
-                        day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, time_start + surgery_duration, (surgery_amount - 1))
-                        time_start = math.floor(time_start + surgery_duration)
-                    elif surgery_amount == 0: # if == 0 waiting
-                        while self.get_resource_amount(day_array_surgery, time_start) < 1:
-                            time_start = math.floor(time_start + 1)
-                        free_spots_available += 5
-                        waiting_time += 1 # penalty for waiting
-                        amount = self.get_resource_amount(day_array_surgery, time_start)
-                        day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, int(time_start) + surgery_duration, (amount - 1))
+                        if surgery_amount > 1: # if > 1 everything ok
+                            day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, time_start + surgery_duration, (surgery_amount - 1))
+                            time_start = math.floor(time_start + surgery_duration)
+                        elif surgery_amount == 1: # if == 1 penalty, because there are no more free spaces
+                            free_spots_available += 5
+                            day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, time_start + surgery_duration, (surgery_amount - 1))
+                            time_start = math.floor(time_start + surgery_duration)
+                        elif surgery_amount == 0: # if == 0 waiting
+                            while self.get_resource_amount(day_array_surgery, time_start) < 1:
+                                time_start = math.floor(time_start + 1)
+                            free_spots_available += 5
+                            waiting_time += 1 # penalty for waiting
+                            amount = self.get_resource_amount(day_array_surgery, time_start)
+                            day_array_surgery = self.update_resource_amount(day_array_surgery, time_start, int(time_start) + surgery_duration, (amount - 1))
 
-                # continue with a nursing for a patients
-                if case['info']['diagnosis'] == "A1" or case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4":
-                    
-                    # determine duration and amount
-                    nursing_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "nursing"))
-                    nursing_amount = self.get_resource_amount(day_array_a_nursing, time_start)
-                    if nursing_amount > 1: # if > 1 everything ok # TODO
-                        day_array_a_nursing = self.update_resource_amount(day_array_a_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
-                        time_start = math.floor(time_start + nursing_duration)
-                    elif nursing_amount == 1:  # if == 1 penalty, because there are no more free spaces
-                        day_array_a_nursing = self.update_resource_amount(day_array_a_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
-                        free_spots_available += 5 # penalty that there is no space
-                        time_start = math.floor(time_start + nursing_duration)
-                    elif nursing_amount == 0: # if == 0 waiting
-                        while self.get_resource_amount(day_array_a_nursing, time_start) < 1:
-                            time_start = math.floor(time_start + 1)
-                        free_spots_available += 5 # penalty that there is no space
-                        waiting_time += 1 # penalty for waiting
-                        amount = self.get_resource_amount(day_array_a_nursing, time_start)
-                        day_array_a_nursing = self.update_resource_amount(day_array_a_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))
+                    # continue with a nursing for a patients
+                    if case['info']['diagnosis'] == "A1" or case['info']['diagnosis'] == "A2" or case['info']['diagnosis'] == "A3" or case['info']['diagnosis'] == "A4":
+                        
+                        # determine duration and amount
+                        nursing_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "nursing"))
+                        nursing_amount = self.get_resource_amount(day_array_a_nursing, time_start)
+                        if nursing_amount > 1: # if > 1 everything ok # TODO
+                            day_array_a_nursing = self.update_resource_amount(day_array_a_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
+                            time_start = math.floor(time_start + nursing_duration)
+                        elif nursing_amount == 1:  # if == 1 penalty, because there are no more free spaces
+                            day_array_a_nursing = self.update_resource_amount(day_array_a_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
+                            free_spots_available += 5 # penalty that there is no space
+                            time_start = math.floor(time_start + nursing_duration)
+                        elif nursing_amount == 0: # if == 0 waiting
+                            while self.get_resource_amount(day_array_a_nursing, time_start) < 1:
+                                time_start = math.floor(time_start + 1)
+                            free_spots_available += 5 # penalty that there is no space
+                            waiting_time += 1 # penalty for waiting
+                            amount = self.get_resource_amount(day_array_a_nursing, time_start)
+                            day_array_a_nursing = self.update_resource_amount(day_array_a_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))
 
-                # continue with b nursing for a patients
-                elif case['info']['diagnosis'] == "B1" or case['info']['diagnosis'] == "B2" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
+                    # continue with b nursing for a patients
+                    elif case['info']['diagnosis'] == "B1" or case['info']['diagnosis'] == "B2" or case['info']['diagnosis'] == "B3" or case['info']['diagnosis'] == "B4":
 
-                    # determine duration and amount
-                    nursing_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "nursing"))
-                    nursing_amount = self.get_resource_amount(day_array_a_nursing, time_start)
-                    if nursing_amount > 1: # if > 1 everything ok # TODO
-                        day_array_b_nursing = self.update_resource_amount(day_array_b_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
-                        time_start = math.floor(time_start + nursing_duration)
-                    elif nursing_amount == 1: # if == 1 penalty, because there are no more free spaces
-                        day_array_b_nursing = self.update_resource_amount(day_array_b_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
-                        free_spots_available += 5 # penalty that there is no space
-                        time_start = math.floor(time_start + nursing_duration)
-                    elif nursing_amount == 0: # if == 0 waiting
-                        while self.get_resource_amount(day_array_b_nursing, time_start) < 1:
-                            time_start = math.floor(time_start + 1)
-                        free_spots_available += 5 # penalty that there is no space
-                        waiting_time += 1 # penalty for waiting
-                        amount = self.get_resource_amount(day_array_b_nursing, time_start)
-                        day_array_b_nursing = self.update_resource_amount(day_array_b_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))              
+                        # determine duration and amount
+                        nursing_duration = math.floor(self.calculate_operation_time(case['info']['diagnosis'], "nursing"))
+                        nursing_amount = self.get_resource_amount(day_array_a_nursing, time_start)
+                        if nursing_amount > 1: # if > 1 everything ok # TODO
+                            day_array_b_nursing = self.update_resource_amount(day_array_b_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
+                            time_start = math.floor(time_start + nursing_duration)
+                        elif nursing_amount == 1: # if == 1 penalty, because there are no more free spaces
+                            day_array_b_nursing = self.update_resource_amount(day_array_b_nursing , time_start, time_start + nursing_duration, (nursing_amount - 1) )
+                            free_spots_available += 5 # penalty that there is no space
+                            time_start = math.floor(time_start + nursing_duration)
+                        elif nursing_amount == 0: # if == 0 waiting
+                            while self.get_resource_amount(day_array_b_nursing, time_start) < 1:
+                                time_start = math.floor(time_start + 1)
+                            free_spots_available += 5 # penalty that there is no space
+                            waiting_time += 1 # penalty for waiting
+                            amount = self.get_resource_amount(day_array_b_nursing, time_start)
+                            day_array_b_nursing = self.update_resource_amount(day_array_b_nursing, time_start, int(time_start) + nursing_duration, (amount - 1))              
 
-        score = free_spots_available + waiting_time + intake_infeasible  
-        print("Score :" + str(score))          
-
-        return score
+            score = free_spots_available + waiting_time + intake_infeasible  
+            print("Score :" + str(score))          
+            return score
+        except Exception as e:
+            print(e)
+            return 99999 # Return high score
 
     # Nachbarschaftsfunktion, die eine neue Planung generiert
     def get_neighbors(self, schedule):
