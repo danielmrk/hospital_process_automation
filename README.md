@@ -192,7 +192,7 @@ This function converts the number of hours passed since January 1, 2018, into th
 **next_business_day():** <br>
 This function returns the next business day. For example, for friday, it will return monday.
 
-**Line 348 - 364:** <br>
+**Line 356 - 372:** <br>
 Functions which map datetime.time to a minutes and hours.
 
 **plan():** <br>
